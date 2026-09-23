@@ -26,6 +26,12 @@ struct ProgressPayload {
     message: String,
 }
 
+/// Returns the bundled binaries directory (from Tauri resource dir)
+fn bundled_bin_dir(app: &AppHandle) -> Option<PathBuf> {
+    app.path().resource_dir().ok().map(|dir| dir.join("binaries"))
+}
+
+/// Returns the fallback binaries directory (AppData/bin) for dev mode
 pub fn bin_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()
@@ -33,15 +39,39 @@ pub fn bin_dir(app: &AppHandle) -> PathBuf {
         .join("bin")
 }
 
+/// Returns the path to yt-dlp, checking bundled location first
 pub fn ytdlp_path(app: &AppHandle) -> PathBuf {
+    // 1. Check bundled location first (installer)
+    if let Some(bundled_dir) = bundled_bin_dir(app) {
+        let bundled = bundled_dir.join(if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" });
+        if bundled.exists() {
+            return bundled;
+        }
+    }
+    // 2. Fallback to AppData/bin (dev mode / old installs)
     bin_dir(app).join(if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" })
 }
 
+/// Returns the path to ffmpeg, checking bundled location first
 pub fn ffmpeg_path(app: &AppHandle) -> PathBuf {
+    // 1. Check bundled location first (installer)
+    if let Some(bundled_dir) = bundled_bin_dir(app) {
+        let bundled = bundled_dir.join(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
+        if bundled.exists() {
+            return bundled;
+        }
+    }
+    // 2. Fallback to AppData/bin
     bin_dir(app).join(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" })
 }
 
 fn ffprobe_path(app: &AppHandle) -> PathBuf {
+    if let Some(bundled_dir) = bundled_bin_dir(app) {
+        let bundled = bundled_dir.join(if cfg!(windows) { "ffprobe.exe" } else { "ffprobe" });
+        if bundled.exists() {
+            return bundled;
+        }
+    }
     bin_dir(app).join(if cfg!(windows) { "ffprobe.exe" } else { "ffprobe" })
 }
 
@@ -107,6 +137,23 @@ pub async fn ensure_binaries(app: AppHandle) -> Result<BinariesStatus, String> {
 async fn ensure_inner(app: &AppHandle) -> Result<BinariesStatus, String> {
     let dir = bin_dir(app);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    // If bundled binaries exist, copy them to AppData/bin for future use
+    if let Some(bundled_dir) = bundled_bin_dir(app) {
+        for tool in ["yt-dlp", "ffmpeg", "ffprobe"] {
+            let ext = if cfg!(windows) { ".exe" } else { "" };
+            let bundled = bundled_dir.join(format!("{}{}", tool, ext));
+            let dest = dir.join(format!("{}{}", tool, if cfg!(windows) { ".exe" } else { "" }));
+            if bundled.exists() && !dest.exists() {
+                let _ = std::fs::copy(&bundled, &dest);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+                }
+            }
+        }
+    }
 
     if !ytdlp_exists(app) {
         let url = if cfg!(windows) {

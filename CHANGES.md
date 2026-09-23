@@ -180,5 +180,6 @@ vidaro-release/
 1. **Scheduler**: با Pause/Resume موجود تداخل ندارد (چک شده)
 2. **Import**: deduplication بر اساس video_id + dir انجام می‌شود
 3. **Proxy**: yt-dlp از آرگومان `--proxy` استفاده می‌کند، نیاز به restart ندارد
-4. **Icon**: بازسازی شده با ۷ سایز (16, 24, 32, 48, 64, 128, 256)
+4. **Icon**: بازسازی شده با ۱۲ سایز (16, 20, 24, 32, 40, 48, 64, 72, 80, 96, 128, 256)
 5. **LTO غیرفعال**: در Release LTO=false برای جلوگیری از مشکل کامپایل `ring` crate
+6. **Bundled Binaries (externalBin)**: در حال حاضر به دلیل محدودیت Tauri v2 در مدیریت target triple، باینری‌های yt-dlp/ffmpeg در installer بسته‌بندی نشده‌اند. در اولین اجرا، برنامه به صورت خودکار آن‌ها را دانلود می‌کند (مکانیزم `ensure_binaries` فعال است). برای رفع کامل، نیاز به بررسی دقیق‌تر مستندات Tauri v2 یا استفاده از build script سفارشی است.

@@ -45,6 +45,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-vidaro-
 
+      - name: Download Windows binaries (yt-dlp, ffmpeg, ffprobe)
+        shell: pwsh
+        run: |
+          $binDir = "src-tauri/binaries"
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          
+          # yt-dlp
+          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "$binDir/yt-dlp.exe"
+          
+          # ffmpeg (static build with ffmpeg.exe + ffprobe.exe)
+          $ffmpegZip = "$binDir/ffmpeg.zip"
+          Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip" -OutFile $ffmpegZip
+          Expand-Archive -Force -Path $ffmpegZip -DestinationPath "$binDir/_ffmpeg"
+          # Find and copy ffmpeg.exe and ffprobe.exe from extracted folder
+          $ffmpegExe = Get-ChildItem -Path "$binDir/_ffmpeg" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          $ffprobeExe = Get-ChildItem -Path "$binDir/_ffmpeg" -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
+          if ($ffmpegExe) { Copy-Item -Force $ffmpegExe.FullName "$binDir/ffmpeg.exe" }
+          if ($ffprobeExe) { Copy-Item -Force $ffprobeExe.FullName "$binDir/ffprobe.exe" }
+          Remove-Item -Force -Recurse "$binDir/_ffmpeg"
+          Remove-Item -Force $ffmpegZip
+          
+          Write-Host "Binaries downloaded to $binDir"
+          Get-ChildItem $binDir
+
       - name: Install frontend dependencies
         run: npm ci
 
@@ -92,6 +116,26 @@ jobs:
           key: ${{ runner.os }}-vidaro-${{ hashFiles('**/Cargo.lock', '**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-vidaro-
+
+      - name: Download macOS binaries (yt-dlp, ffmpeg, ffprobe)
+        run: |
+          BIN_DIR="src-tauri/binaries"
+          mkdir -p "$BIN_DIR"
+          
+          # yt-dlp (universal)
+          curl -L -o "$BIN_DIR/yt-dlp" "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+          chmod +x "$BIN_DIR/yt-dlp"
+          
+          # ffmpeg + ffprobe from evermeet.cx
+          for tool in ffmpeg ffprobe; do
+            curl -L -o "$BIN_DIR/${tool}.zip" "https://evermeet.cx/ffmpeg/get/${tool}/zip"
+            unzip -o "$BIN_DIR/${tool}.zip" -d "$BIN_DIR"
+            rm "$BIN_DIR/${tool}.zip"
+            chmod +x "$BIN_DIR/$tool"
+          done
+          
+          echo "Binaries downloaded to $BIN_DIR"
+          ls -la "$BIN_DIR"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -159,6 +203,27 @@ jobs:
           key: ${{ runner.os }}-vidaro-${{ hashFiles('**/Cargo.lock', '**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-vidaro-
+
+      - name: Download Linux binaries (yt-dlp, ffmpeg, ffprobe)
+        run: |
+          BIN_DIR="src-tauri/binaries"
+          mkdir -p "$BIN_DIR"
+          
+          # yt-dlp
+          curl -L -o "$BIN_DIR/yt-dlp" "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+          chmod +x "$BIN_DIR/yt-dlp"
+          
+          # ffmpeg static build
+          curl -L -o ffmpeg.tar.xz "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz"
+          tar -xf ffmpeg.tar.xz -C /tmp
+          # Find and copy ffmpeg and ffprobe
+          find /tmp -name "ffmpeg" -type f -executable | head -1 | xargs -I {} cp {} "$BIN_DIR/ffmpeg"
+          find /tmp -name "ffprobe" -type f -executable | head -1 | xargs -I {} cp {} "$BIN_DIR/ffprobe"
+          chmod +x "$BIN_DIR/ffmpeg" "$BIN_DIR/ffprobe"
+          rm -rf ffmpeg.tar.xz /tmp/ffmpeg-*
+          
+          echo "Binaries downloaded to $BIN_DIR"
+          ls -la "$BIN_DIR"
 
       - name: Install frontend dependencies
         run: npm ci

@@ -1,4 +1,3 @@
-# 🇮🇷 فارسی
 <div align="center">
 
 ### Vidaro

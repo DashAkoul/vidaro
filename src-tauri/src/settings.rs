@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_autostart::ManagerExt;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
@@ -17,10 +18,15 @@ pub struct Settings {
     pub embed_thumbnail: bool,    // embed thumbnail into audio files
     // Proxy
     pub proxy: String,            // "" = off, e.g. "http://host:port" or "socks5://host:port"
+    pub proxy_mode: String,       // "off" | "system" | "manual"
+    pub proxy_host: String,       // proxy host
+    pub proxy_port: String,       // proxy port
     // Scheduler (global)
     pub scheduler_enabled: bool,  // enable global schedule
     pub scheduler_start: String,  // "HH:MM" 24h format
     pub scheduler_end: String,    // "HH:MM" 24h format
+    // Auto-start
+    pub autostart_enabled: bool,  // start app on system boot
 }
 
 impl Default for Settings {
@@ -36,9 +42,13 @@ impl Default for Settings {
             embed_metadata: true,
             embed_thumbnail: true,
             proxy: String::new(),
+            proxy_mode: "off".to_string(),
+            proxy_host: String::new(),
+            proxy_port: String::new(),
             scheduler_enabled: false,
             scheduler_start: "02:00".to_string(),
             scheduler_end: "06:00".to_string(),
+            autostart_enabled: true,
         }
     }
 }
@@ -85,6 +95,24 @@ pub fn get_settings(app: AppHandle) -> Settings {
 #[tauri::command]
 pub fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     save(&app, &settings)?;
+    Ok(())
+}
+
+/// Update autostart setting
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = load(&app);
+    settings.autostart_enabled = enabled;
+    save(&app, &settings)?;
+    
+    // Update system autostart
+    let autostart_manager = app.autolaunch();
+    if enabled {
+        let _ = autostart_manager.enable();
+    } else {
+        let _ = autostart_manager.disable();
+    }
+    
     Ok(())
 }
 

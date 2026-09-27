@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { binariesStatus, updateYtdlp, exportData, importData, getSettings } from "../api";
+import { binariesStatus, updateYtdlp, exportData, importData, getSettings, setAutostart } from "../api";
 import { I18nContext } from "../i18n";
 import { AppContext } from "../App";
 import type { BinariesStatus } from "../types";
@@ -174,14 +174,61 @@ export default function SettingsView({
 
         <div className="settings-row">
           <span>{t("proxy")}</span>
-          <input
-            type="text"
-            value={settings.proxy}
-            onChange={(e) => updateSettings({ proxy: e.target.value })}
-            placeholder={t("proxyPlaceholder")}
-            dir="ltr"
-            style={{ width: 300 }}
-          />
+          <div className="seg" style={{ flex: 1, minWidth: 0 }}>
+            <button
+              className={`seg-btn ${(settings.proxyMode || 'off') === 'off' ? 'active' : ''}`}
+              onClick={() => updateSettings({ proxyMode: 'off', proxy: '' })}
+            >
+              {t('proxyOff')}
+            </button>
+            <button
+              className={`seg-btn ${(settings.proxyMode || 'off') === 'system' ? 'active' : ''}`}
+              onClick={() => updateSettings({ proxyMode: 'system', proxy: '' })}
+            >
+              {t('proxySystem')}
+            </button>
+            <button
+              className={`seg-btn ${(settings.proxyMode || 'off') === 'manual' ? 'active' : ''}`}
+              onClick={() => updateSettings({ proxyMode: 'manual' })}
+            >
+              {t('proxyManual')}
+            </button>
+          </div>
+        </div>
+
+        {(settings.proxyMode || 'off') === 'manual' && (
+          <div className="settings-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ minWidth: 60 }}>{t('proxyHost')}</label>
+            <input
+              type="text"
+              value={settings.proxyHost || ''}
+              onChange={(e) => updateSettings({ proxyHost: e.target.value })}
+              placeholder="127.0.0.1"
+              dir="ltr"
+              style={{ flex: 1, minWidth: 120 }}
+            />
+            <label style={{ minWidth: 50 }}>{t('proxyPort')}</label>
+            <input
+              type="number"
+              value={settings.proxyPort || ''}
+              onChange={(e) => updateSettings({ proxyPort: e.target.value })}
+              placeholder="8080"
+              dir="ltr"
+              style={{ width: 80 }}
+            />
+          </div>
+        )}
+
+        {(settings.proxyMode || 'off') === 'system' && (
+          <div className="settings-row">
+            <span className="muted small" style={{ marginLeft: 4 }}>
+              {t('proxySystemNote')}
+            </span>
+          </div>
+        )}
+
+        <div className="muted small" style={{ marginTop: 8, marginLeft: 24 }}>
+          {t('proxyNote')}
         </div>
       </section>
 
@@ -222,6 +269,18 @@ export default function SettingsView({
         <div className="muted small" style={{ marginTop: 8, marginLeft: 24 }}>
           {t("schedulerNote")}
         </div>
+
+        <label className="settings-row check">
+          <input
+            type="checkbox"
+            checked={settings.autostartEnabled}
+            onChange={async (e) => {
+              await setAutostart(e.target.checked);
+              updateSettings({ autostartEnabled: e.target.checked });
+            }}
+          />
+          <span>{t("autostartEnabled")}</span>
+        </label>
       </section>
 
       <section className="settings-section">

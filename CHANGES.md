@@ -45,10 +45,11 @@
   - `update_item_schedule` command
   - `start_global_scheduler` background task
 
-### 5. Proxy در UI
+### 5. Proxy در UI (اصلاح شده)
 - فیلد Proxy در SettingsView (HTTP/HTTPS/SOCKS5)
 - اعمال مستقیم به آرگومان‌های yt-dlp با `--proxy`
-- پشتیبانی از فرمت‌های: `http://host:port`, `https://host:port`, `socks5://host:port`
+- اعمال به متغیرهای محیطی `HTTP_PROXY` و `HTTPS_PROXY` برای ffmpeg
+- پشتیبانی از فرمت‌های: `http://host:port`, `https://host:port`, `socks5://host:port`, `socks5h://host:port`
 
 ### 6. بازسازی خروجی تمیز
 - **پوشه `source_code/`**: کد تمیز، مستند، بدون فایل‌های بیلد
@@ -64,6 +65,28 @@
   - دکمه «نادیده» برای بستن
   - استایل جدید با `.show` class برای انیمیشن ورود/خروج
 - **ترجمه**: کلید `openApp` به فارسی («باز کردن برنامه») و انگلیسی («Open App») اضافه شد
+- **اصلاح**: اعلان حالا به صورت **System Notification** (اعلان سیستم عامل) نمایش داده می‌شود، نه دراپ‌داون داخلی برنامه. کاربر می‌تواند از نوتیفیکیشن ویندوز/مک/لینوکس روی آن کلیک کند و مستقیماً به برنامه منتقل شود.
+
+### 9. اجرای خودکار با بالا آمدن ویندوز (Auto-start)
+- **Backend** (`settings.rs` + `lib.rs`):
+  - افزودن فیلد `autostart_enabled` به ساختار Settings
+  - استفاده از `tauri-plugin-autostart` برای مدیریت اجرای خودکار
+  - API `set_autostart` برای فعال/غیرفعال کردن از طریق UI
+- **Frontend** (`SettingsView.tsx`):
+  - چک‌باکس "اجرای خودکار با بالا آمدن ویندوز" در بخش زمان‌بندی
+  - اعمال فوری تغییرات در رجیستری ویندوز
+- **پیش‌فرض**: فعال (true)
+
+### 10. آیکون نصب‌کننده (Installer Icon)
+- **تنظیم در `tauri.conf.json`**: استفاده از آیکون کامل (`icon.ico` با ۱۲ سایز) برای نصب‌کننده
+- **NSIS**: آیکون نصب‌کننده، هدر، ولکام، و لایسنس سفارشی
+- **WiX (MSI)**: بنر، دیالوگ، و لایسنس RTF سفارشی
+- **نتيجه**: آیکون برنامه در فایل نصبی، شورتکات دسکتاپ، و منوی استارت به درستی نمایش داده می‌شود
+
+### 11. بهبود Proxy (اعمال به ffmpeg)
+- **Backend** (`download.rs`):
+  - تنظیم متغیرهای محیطی `HTTP_PROXY`، `HTTPS_PROXY`، `http_proxy`، `https_proxy` برای فرآیند ffmpeg
+  - پشتیبانی کامل از پروتکل‌های HTTP، HTTPS، SOCKS5، SOCKS5h
 
 ---
 
@@ -172,14 +195,18 @@ vidaro-release/
 | Import/Export UI | ✅ Verified | Buttons present in SettingsView |
 | Scheduler UI (Global/Per-item) | ✅ Verified | Time inputs in Settings, 🕐 button in Queue |
 | Proxy UI | ✅ Verified | Input field in Settings |
-| **Clipboard Toast Notification** | ✅ **Pass** | **Animated toast with Download/Open App/Dismiss buttons** |
+| **Clipboard System Notification** | ✅ **Pass** | **Windows Toast notification with click-to-open** |
+| **Auto-start (Windows)** | ✅ **Pass** | **Registry Run key managed via tauri-plugin-autostart** |
+| **Installer Icons** | ✅ **Pass** | **NSIS/MSI with custom icon, header, banner** |
+| **Proxy for ffmpeg** | ✅ **Pass** | **Environment variables passed to subprocess** |
 
 ---
 
 ## ⚠️ نکات باقی‌مانده
 1. **Scheduler**: با Pause/Resume موجود تداخل ندارد (چک شده)
 2. **Import**: deduplication بر اساس video_id + dir انجام می‌شود
-3. **Proxy**: yt-dlp از آرگومان `--proxy` استفاده می‌کند، نیاز به restart ندارد
+3. **Proxy**: yt-dlp از آرگومان `--proxy` استفاده می‌کند، نیاز به restart ندارد (همچنین برای ffmpeg عبر متغیرهای محیطی)
 4. **Icon**: بازسازی شده با ۱۲ سایز (16, 20, 24, 32, 40, 48, 64, 72, 80, 96, 128, 256)
 5. **LTO غیرفعال**: در Release LTO=false برای جلوگیری از مشکل کامپایل `ring` crate
 6. **Bundled Binaries (externalBin)**: در حال حاضر به دلیل محدودیت Tauri v2 در مدیریت target triple، باینری‌های yt-dlp/ffmpeg در installer بسته‌بندی نشده‌اند. در اولین اجرا، برنامه به صورت خودکار آن‌ها را دانلود می‌کند (مکانیزم `ensure_binaries` فعال است). برای رفع کامل، نیاز به بررسی دقیق‌تر مستندات Tauri v2 یا استفاده از build script سفارشی است.
+7. **macOS/Linux Build**: برای بیلد macOS (DMG) و Linux (AppImage/Deb) نیاز به اجرای `npm run tauri build` روی سیستم‌عامل مربوطه (یا GitHub Actions) است.

@@ -77,10 +77,15 @@ export interface Settings {
   embedThumbnail: boolean;
   // Proxy
   proxy: string;
+  proxyMode: "off" | "system" | "manual";
+  proxyHost: string;
+  proxyPort: string;
   // Scheduler (global)
   schedulerEnabled: boolean;
   schedulerStart: string;
   schedulerEnd: string;
+  // Auto-start
+  autostartEnabled: boolean;
 }
 
 export interface BinariesStatus {

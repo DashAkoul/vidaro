@@ -464,10 +464,16 @@ pub async fn run_item(app: AppHandle, inner: Arc<ItemInner>, gate: GateProxy) {
     let _ = set_status(&app, &inner, "active").await;
 
     let setts = settings::load(&app);
-    let (ytdlp, args) = {
+    let (ytdlp, args, proxy_env) = {
         let item = inner.item.lock().await;
         let ffmpeg_dir = bin_dir(&app);
-        (ytdlp_path(&app), build_args(&item, &setts, &ffmpeg_dir))
+        let args = build_args(&item, &setts, &ffmpeg_dir);
+        let proxy_env = if !setts.proxy.trim().is_empty() {
+            Some(setts.proxy.trim().to_string())
+        } else {
+            None
+        };
+        (ytdlp_path(&app), args, proxy_env)
     };
 
     let mut cmd = tokio::process::Command::new(&ytdlp);
@@ -476,6 +482,13 @@ pub async fn run_item(app: AppHandle, inner: Arc<ItemInner>, gate: GateProxy) {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
+    // Set proxy environment variables for ffmpeg
+    if let Some(proxy) = proxy_env {
+        cmd.env("http_proxy", &proxy);
+        cmd.env("https_proxy", &proxy);
+        cmd.env("HTTP_PROXY", &proxy);
+        cmd.env("HTTPS_PROXY", &proxy);
+    }
     #[cfg(windows)]
     {
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW (tokio's own method)
@@ -1107,9 +1120,6 @@ async fn wait_for_schedule(start_min: u32, end_min: u32) {
 }
 
 // ---------------------------------------------------------------------------
-// Args builder
-// ---------------------------------------------------------------------------
-
 fn build_args(item: &Item, setts: &settings::Settings, ffmpeg_dir: &PathBuf) -> Vec<String> {
     let mut a: Vec<String> = vec![
         "--newline".into(),
@@ -1126,10 +1136,24 @@ fn build_args(item: &Item, setts: &settings::Settings, ffmpeg_dir: &PathBuf) -> 
         ffmpeg_dir.to_string_lossy().to_string(),
     ];
 
-    // Proxy support
-    if !setts.proxy.trim().is_empty() {
+    // Proxy support for yt-dlp
+    let proxy_url = match setts.proxy_mode.as_str() {
+        "manual" if !setts.proxy_host.trim().is_empty() => {
+            let host = setts.proxy_host.trim();
+            let port = setts.proxy_port.trim();
+            if !port.is_empty() {
+                Some(format!("http://{}:{}", host, port))
+            } else {
+                Some(format!("http://{}", host))
+            }
+        }
+        "system" => None, // Use system proxy (yt-dlp will use system proxy by default)
+        _ => None,
+    };
+
+    if let Some(proxy) = proxy_url {
         a.push("--proxy".into());
-        a.push(setts.proxy.trim().to_string());
+        a.push(proxy);
     }
 
     if item.audio_only {

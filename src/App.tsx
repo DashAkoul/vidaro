@@ -4,9 +4,9 @@ import {
   getQueue,
   getSettings,
   onBinariesProgress,
-  onClipboardYoutube,
   onItemUpdated,
   onQueueChanged,
+  onClipboardYoutube,
   setSettings as saveSettingsApi,
   binariesStatus,
 } from "./api";
@@ -17,6 +17,22 @@ import Queue, { type QueueFilter } from "./views/Queue";
 import HistoryView from "./views/History";
 import SettingsView from "./views/SettingsView";
 import "./app.css";
+
+// Declare Notification for TypeScript
+declare const Notification: {
+  permission: NotificationPermission;
+  requestPermission(): Promise<NotificationPermission>;
+  new(title: string, options?: NotificationOptions): Notification;
+};
+
+interface NotificationOptions {
+  body?: string;
+  icon?: string;
+}
+
+interface Notification {
+  onclick: (() => void) | null;
+}
 
 export type Tab = "new" | "queue" | "history" | "settings";
 
@@ -40,8 +56,6 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true,
   );
-  const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
-  const clipboardToastTimer = useRef<number | null>(null);
 
   // initial load
   useEffect(() => {
@@ -76,12 +90,8 @@ export default function App() {
       }),
       onQueueChanged(async () => setItems(await getQueue())),
       onBinariesProgress((p) => setBinProg(p)),
-      onClipboardYoutube((url) => {
-        setClipboardUrl(url);
-        if (clipboardToastTimer.current) {
-          window.clearTimeout(clipboardToastTimer.current);
-        }
-        clipboardToastTimer.current = window.setTimeout(() => setClipboardUrl(null), 12000);
+      onClipboardYoutube((url: string) => {
+        showClipboardNotification(url, openUrl);
       }),
     ];
     return () => {
@@ -118,7 +128,6 @@ export default function App() {
   );
 
   const openUrl = useCallback((url: string) => {
-    setClipboardUrl(null);
     setTab("new");
     setPendingUrl(url);
   }, []);
@@ -263,29 +272,6 @@ export default function App() {
           </footer>
         </div>
 
-        {clipboardUrl && (
-          <div className="toast clipboard-toast show">
-            <div className="toast-body">
-              <div className="toast-icon">📥</div>
-              <div className="toast-content">
-                <b>{t("clipboardFound")}</b>
-                <code dir="ltr">{clipboardUrl.length > 60 ? clipboardUrl.slice(0, 60) + "…" : clipboardUrl}</code>
-              </div>
-            </div>
-            <div className="toast-actions">
-              <button className="btn primary small" onClick={() => openUrl(clipboardUrl)}>
-                {t("downloadNow")}
-              </button>
-              <button className="btn secondary small" onClick={() => { openUrl(clipboardUrl); goTab("new"); }}>
-                {t("openApp")}
-              </button>
-              <button className="ghost-btn" onClick={() => setClipboardUrl(null)}>
-                {t("dismiss")}
-              </button>
-            </div>
-          </div>
-        )}
-
         {binaries && !binaries.ready && (
           <div className="overlay">
             <div className="overlay-card">
@@ -327,6 +313,32 @@ export default function App() {
       </div>
     </I18nContext.Provider>
   );
+}
+
+function showClipboardNotification(url: string, openUrl: (url: string) => void) {
+  if (Notification.permission === "granted") {
+    const notif = new Notification("Vidaro - YouTube Link Detected", {
+      body: `Click to download: ${url}`,
+      icon: "/icons/128x128.png",
+    });
+    notif.onclick = () => {
+      window.focus();
+      openUrl(url);
+    };
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then((permission) => {
+      if (permission === "granted") {
+        const notif = new Notification("Vidaro - YouTube Link Detected", {
+          body: `Click to download: ${url}`,
+          icon: "/icons/128x128.png",
+        });
+        notif.onclick = () => {
+          window.focus();
+          openUrl(url);
+        };
+      }
+    });
+  }
 }
 
 function formatSpeedShort(bps: number): string {

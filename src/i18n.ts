@@ -103,6 +103,14 @@ export const dict = {
     // Proxy
     proxy: "پروکسی",
     proxyPlaceholder: "مثال: http://host:port یا socks5://host:port",
+    proxyMode: "حالت پروکسی",
+    proxyOff: "خاموش",
+    proxySystem: "پروکسی سیستم",
+    proxyManual: "دستی",
+    proxyHost: "آدرس",
+    proxyPort: "پورت",
+    proxySystemNote: "استفاده از تنظیمات پروکسی سیستم‌عامل",
+    proxyNote: "پشتیبانی از HTTP، HTTPS، SOCKS5، SOCKS5h",
 
     // Scheduler
     scheduler: "زمان‌بندی",
@@ -115,6 +123,7 @@ export const dict = {
     scheduleEnd: "پایان",
     clearSchedule: "حذف زمان‌بندی",
     statusScheduled: "زمان‌بندی شده",
+    autostartEnabled: "اجرای خودکار با بالا آمدن ویندوز",
 
     // Import/Export
     importExport: "ورود/صادرکردن داده‌ها",
@@ -245,6 +254,14 @@ export const dict = {
     // Proxy
     proxy: "Proxy",
     proxyPlaceholder: "e.g. http://host:port or socks5://host:port",
+    proxyMode: "Proxy Mode",
+    proxyOff: "Off",
+    proxySystem: "System Proxy",
+    proxyManual: "Manual",
+    proxyHost: "Host",
+    proxyPort: "Port",
+    proxySystemNote: "Use system proxy settings",
+    proxyNote: "Supports HTTP, HTTPS, SOCKS5, SOCKS5h",
 
     // Scheduler
     scheduler: "Scheduler",
@@ -257,6 +274,7 @@ export const dict = {
     scheduleEnd: "End",
     clearSchedule: "Clear schedule",
     statusScheduled: "Scheduled",
+    autostartEnabled: "Auto-start with Windows",
 
     // Import/Export
     importExport: "Import/Export Data",

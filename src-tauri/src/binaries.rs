@@ -138,24 +138,54 @@ async fn ensure_inner(app: &AppHandle) -> Result<BinariesStatus, String> {
     let dir = bin_dir(app);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
-    // If bundled binaries exist, copy them to AppData/bin for future use
+    // If bundled binaries exist, copy them to AppData/bin (force overwrite to ensure latest)
     if let Some(bundled_dir) = bundled_bin_dir(app) {
         for tool in ["yt-dlp", "ffmpeg", "ffprobe"] {
             let ext = if cfg!(windows) { ".exe" } else { "" };
             let bundled = bundled_dir.join(format!("{}{}", tool, ext));
             let dest = dir.join(format!("{}{}", tool, if cfg!(windows) { ".exe" } else { "" }));
-            if bundled.exists() && !dest.exists() {
+            if bundled.exists() {
                 let _ = std::fs::copy(&bundled, &dest);
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
                     let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
                 }
+                eprintln!("[binaries] Copied {} to {}", bundled.display(), dest.display());
+            } else {
+                eprintln!("[binaries] Bundled tool not found: {}", bundled.display());
             }
         }
     }
 
-    if !ytdlp_exists(app) {
+    // Check and download yt-dlp if needed
+    let ytdlp_path = ytdlp_path(app);
+    let ytdlp_exists = ytdlp_path.exists();
+    let ytdlp_version_current = if ytdlp_exists {
+        ytdlp_version(app)
+    } else {
+        None
+    };
+    let ytdlp_version_bundled = if let Some(bundled_dir) = bundled_bin_dir(app) {
+        let bundled = bundled_dir.join(if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" });
+        if bundled.exists() {
+            std::process::Command::new(&bundled)
+                .arg("--version")
+                .output()
+                .ok()
+                .and_then(|out| String::from_utf8(out.stdout).ok())
+                .map(|s| s.trim().to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let needs_ytdlp_download = !ytdlp_exists || 
+        (ytdlp_version_bundled.is_some() && ytdlp_version_current != ytdlp_version_bundled);
+
+    if needs_ytdlp_download {
         let url = if cfg!(windows) {
             "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
         } else {
@@ -163,11 +193,30 @@ async fn ensure_inner(app: &AppHandle) -> Result<BinariesStatus, String> {
         };
         let dest_tmp = dir.join("yt-dlp.download");
         download_file(app, "yt-dlp", url, &dest_tmp).await?;
-        std::fs::rename(&dest_tmp, ytdlp_path(app)).map_err(|e| e.to_string())?;
-        finish_executable(app, &ytdlp_path(app))?;
+        std::fs::rename(&dest_tmp, &ytdlp_path).map_err(|e| e.to_string())?;
+        finish_executable(app, &ytdlp_path)?;
+    } else if ytdlp_exists {
+        // Ensure bundled version is copied to AppData/bin
+        if let Some(bundled_dir) = bundled_bin_dir(app) {
+            let bundled = bundled_dir.join(if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" });
+            if bundled.exists() && !ytdlp_path.exists() {
+                let _ = std::fs::copy(&bundled, &ytdlp_path);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(&ytdlp_path, std::fs::Permissions::from_mode(0o755));
+                }
+            }
+        }
     }
 
-    if !ffmpeg_exists(app) {
+    // Check and download ffmpeg if needed
+    let ffmpeg_path_val = ffmpeg_path(app);
+    let ffprobe_path_val = ffprobe_path(app);
+    let ffmpeg_exists = ffmpeg_path_val.exists();
+    let ffprobe_exists = ffprobe_path_val.exists();
+
+    if !ffmpeg_exists || !ffprobe_exists {
         if cfg!(windows) {
             // BtbN static build (contains ffmpeg.exe + ffprobe.exe)
             let url = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip";

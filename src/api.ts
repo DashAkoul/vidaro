@@ -53,6 +53,8 @@ export const openDownloadFolder = (id: string) =>
 export const getSettings = () => invoke<Settings>("get_settings");
 export const setSettings = (settings: Settings) =>
   invoke("set_settings", { settings });
+export const setAutostart = (enabled: boolean) =>
+  invoke("set_autostart", { enabled });
 export const getHistory = () => invoke<HistoryEntry[]>("get_history");
 export const clearHistory = () => invoke("clear_history");
 export const revealPath = (path: string) => invoke("reveal_path", { path });

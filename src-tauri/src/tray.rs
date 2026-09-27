@@ -81,7 +81,7 @@ pub fn setup(app: &AppHandle) {
         });
     }
 
-    // clipboard watcher for YouTube links
+    // clipboard watcher for YouTube links - emit event for frontend to handle notification
     let app4 = app.clone();
     std::thread::spawn(move || {
         eprintln!("[clip] watcher thread started");
@@ -112,6 +112,8 @@ pub fn setup(app: &AppHandle) {
             }
             *last = Some(text.to_string());
             eprintln!("[clip] emitting suggestion: {text}");
+            
+            // Just emit event - frontend will handle system notification
             let _ = app4.emit("clipboard-youtube", text.to_string());
         }
     });

@@ -47,16 +47,16 @@ if (-not $AppPath) {
         "${env:ProgramFiles}\Vidaro\vidaro.exe",
         "${env:ProgramFiles(x86)}\Vidaro\vidaro.exe",
         "${env:LocalAppData}\Programs\Vidaro\vidaro.exe",
-        "C:\Users\Akoul\Desktop\Project\MyCode\vidaro\src-tauri\target\release\vidaro.exe"
+        "${env:LocalAppData}\Vidaro\vidaro.exe"
     )
-    
+
     foreach ($path in $possiblePaths) {
         if (Test-Path $path) {
             $AppPath = $path
             break
         }
     }
-    
+
     if (-not $AppPath) {
         Write-Error "Could not find vidaro.exe. Please specify -AppPath parameter."
         exit 1

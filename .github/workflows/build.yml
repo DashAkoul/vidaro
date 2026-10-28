@@ -248,6 +248,7 @@ jobs:
             artifacts/**/*.exe
             artifacts/**/*.dmg
             artifacts/**/*.app
+            artifacts/**/*.app.zip
             artifacts/**/*.AppImage
             artifacts/**/*.deb
           draft: false

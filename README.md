@@ -1,63 +1,131 @@
-# YouTube Downloader
+# Vidaro
 
-برنامه دسکتاپ دانلود از یوتیوب برای ویندوز و مک — ساخته‌شده با Tauri 2 (Rust) + React + TypeScript.
+**دانلودر یوتیوب برای دسکتاپ** — ساخته‌شده با Tauri 2 (Rust) + React + TypeScript.
 
-A cross-platform (Windows/macOS) YouTube downloader desktop app built with Tauri 2 (Rust) + React + TypeScript.
+**A desktop YouTube downloader** built with Tauri 2 (Rust) + React + TypeScript.
 
-## امکانات | Features
+![version](https://img.shields.io/badge/version-2.0.0-00a8ff)
 
-- **تک ویدیو، پلی‌لیست یا کل کانال** — ابتدا لیست ویدیوها بدون دانلود نمایش داده می‌شود، بعد انتخاب و دانلود
-- **شماره‌گذاری خودکار** — پلی‌لیست‌ها به ترتیب خود پلی‌لیست و کانال‌ها از قدیمی‌ترین به جدیدترین: `001 - نام ویدیو.mp4`
-- **دانلود منیجر کامل** — صف، دانلود هم‌زمان (قابل تنظیم)، Pause/Resume/Cancel برای هر آیتم، تلاش مجدد، نمایش درصد/سرعت/حجم/زمان باقی‌مانده، تاریخچه
-- **فرمت‌ها** — ویدیو MP4 در کیفیت‌های 360p تا 4K، یا استخراج صوت MP3 (با کاور و متادیتا)
-- **ساختار پوشه‌ها** — پیش‌فرض: `Downloads/YouTube Downloader/<نام کانال یا پلی‌لیست>/` برای دسته‌ها و `Downloads/YouTube Downloader/Single Videos/` برای تک‌ویدیوها (قابل تغییر)
-- **دسته‌بندی در صف دانلود** — آیتم‌های هر کانال/پلی‌لیست زیر یک گروه با شمارنده پیشرفت
-- **دوزبانه** — فارسی (RTL) و انگلیسی با تغییر زبان و تم تاریک/روشن
-- **ابزارهای خودکار** — yt-dlp و ffmpeg در اولین اجرا دانلود و نگهداری می‌شوند؛ دکمه به‌روزرسانی yt-dlp در تنظیمات
-- **زیرنویس** (اختیاری) و **محدودیت سرعت** در تنظیمات
-- صف و تنظیمات بین اجراها ذخیره می‌شوند (دانلودهای ناتمام بعد از باز شدن برنامه قابل Resume هستند)
+---
 
-## اجرای توسعه | Development
+## فارسی
+
+### امکانات
+
+- **تک ویدیو، پلی‌لیست یا کل کانال** — ابتدا لیست ویدیوها بدون دانلود نمایش داده می‌شود، سپس انتخاب و دانلود
+- **شماره‌گذاری خودکار** — پلی‌لیست‌ها به ترتیب پلی‌لیست و کانال‌ها از قدیمی‌ترین به جدیدترین: `001 - نام ویدیو.mp4`
+- **مدیریت صف کامل** — صف، دانلود هم‌زمان قابل تنظیم، Pause/Resume/Cancel/Retry برای هر آیتم، درصد/سرعت/حجم/زمان باقی‌مانده، تاریخچه
+- **فرمت‌ها** — MP4 در کیفیت‌های 360p تا 4K، یا MP3 با کاور و متادیتا
+- **ساختار پوشه‌ها** — `Downloads/YouTube Downloader/<نام کانال یا پلی‌لیست>/` برای دسته‌ها و `.../Single Videos/` برای تک‌ویدیوها
+- **زمان‌بندی دو سطحی** — بازه سراسری در تنظیمات + زمان‌بندی اختصاصی برای هر آیتم
+- **پروکسی** — خاموش / سیستم / دستی (HTTP، HTTPS، SOCKS5، SOCKS5h)
+- **کلیپ‌بورد** — با کپی لینک یوتیوب، پیشنهاد دانلود نمایش داده می‌شود
+- **سینی سیستم** — بستن پنجره برنامه را نمی‌بندد؛ در سینی می‌ماند
+- **اجرای خودکار در پس‌زمینه** — با روشن شدن ویندوز، برنامه **مخفی** در سینی اجرا می‌شود و پنجره باز نمی‌شود
+- **دوزبانه** — فارسی (RTL) و انگلیسی، تم تاریک/روشن/سیستمی
+- **ابزارهای خودکار** — yt-dlp و ffmpeg در اولین اجرا دانلود می‌شوند (نصب‌کننده سبک می‌ماند)
+
+### اجرای توسعه
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-پیش‌نیازها: Node.js، Rust toolchain (rustup)، و در ویندوز Visual Studio C++ Build Tools.
+پیش‌نیازها: Node.js 20+، Rust toolchain (rustup)، و در ویندوز Visual Studio C++ Build Tools.
 
-## بیلد | Build
+### بیلد
 
 ```bash
 npm run tauri build
 ```
 
-خروجی‌ها در `src-tauri/target/release/bundle/`:
-- `msi/YouTube Downloader_0.1.0_x64_en-US.msi`
-- `nsis/YouTube Downloader_0.1.0_x64-setup.exe`
+خروجی در `src-tauri/target/release/bundle/`:
+- `msi/Vidaro_2.0.0_x64_en-US.msi`
+- `nsis/Vidaro_2.0.0_x64-setup.exe`
 
-برای بیلد مک، روی macOS همان دستور `npm run tauri build` را اجرا کنید (خروجی .app و .dmg).
-
-## معماری
+### معماری
 
 ```
 src-tauri/src/
-  binaries.rs   دانلود/مدیریت خودکار yt-dlp و ffmpeg
-  info.rs       فرمان fetch_info: لیست ویدیوها بدون دانلود (flat-playlist)
-  download.rs   مدیر صف، اجرای yt-dlp، پارس پیشرفت، Pause/Resume/Cancel، شماره‌گذاری
-  settings.rs   تنظیمات (JSON در AppData)
-  history.rs    تاریخچه دانلودها + نمایش فایل در Explorer/Finder
-  util.rs       تشخیص نوع URL، نرمال‌سازی URL کانال، پاک‌سازی نام فایل
-
-src/
-  App.tsx               تب‌ها، i18n، تم، اوورلی نصب ابزارها
-  views/NewDownload.tsx ورودی URL، جدول انتخاب ویدیوها، کیفیت/فرمت/پوشه
-  views/Queue.tsx       صف گروه‌بندی‌شده با کنترل‌های هر آیتم
-  views/History.tsx     تاریخچه
-  views/SettingsView.tsx تنظیمات + وضعیت ابزارها
-  i18n.ts               دیکشنری fa/en
+├── lib.rs                 ترکیب‌بندی: state، پلاگین‌ها، فرمان‌ها، پنجره
+├── core/                  زیرساخت مشترک
+│   ├── config.rs          تنظیمات + ConfigStore (cache + ذخیره اتمیک)
+│   ├── paths.rs           مسیرهای داده برنامه
+│   ├── process.rs         اجرای فرآیندها بدون پنجره کنسول
+│   ├── filename.rs        پاک‌سازی نام و جلوگیری از path traversal
+│   ├── events.rs          نام رویدادهای مشترک
+│   ├── error.rs           نوع خطای یکپارچه
+│   └── plugin.rs          trait پلاگین + Registry
+└── features/              پلاگین‌های مستقل
+    ├── tools/             yt-dlp و ffmpeg (مسیر، نصب، به‌روزرسانی)
+    ├── metadata/          لیست ویدیو/پلی‌لیست/کانال بدون دانلود
+    ├── download/          صف، Gate، اجرا، پارس پیشرفت، زمان‌بندی
+    ├── history/           تاریخچه
+    ├── settings/          فرمان‌های تنظیمات + Import/Export
+    ├── system/            سینی، کلیپ‌بورد، autostart
+    └── ipc/               پل Native Messaging برای افزونه مرورگر
 ```
 
-## نکته
+هر پلاگین سه چیز را خودش مدیریت می‌کند: state، فرمان‌های Tauri، و هوک راه‌اندازی.
+برای افزودن قابلیت جدید فقط یک ماژول در `features/` بسازید و در `lib.rs` ثبت کنید.
 
-در برخی شبکه‌ها ممکن است yt-dlp نیاز به پراکسی داشته باشد؛ می‌توانید در تنظیمات سیستم عامل پراکسی را تنظیم کنید (yt-dlp از متغیر محیطی `HTTPS_PROXY` استفاده می‌کند).
+```
+src/
+├── App.tsx                پوسته برنامه
+├── main.tsx               ورودی React
+├── lib/                   api، types، i18n، format، app-context
+├── components/            Sidebar، Topbar، StatusBar، Toast، Overlay
+├── views/                 NewDownload، Queue، History، Settings
+└── styles/app.css
+```
+
+---
+
+## English
+
+### Features
+
+- **Single video, playlist or whole channel** — preview the list first, then pick what to download
+- **Automatic numbering** — playlist order, or oldest → newest for channels: `001 - Video Name.mp4`
+- **Full download manager** — queue, configurable concurrency, per-item pause/resume/cancel/retry, speed/size/ETA, history
+- **Formats** — MP4 from 360p to 4K, or MP3 with cover art and metadata
+- **Folder layout** — `Downloads/YouTube Downloader/<playlist or channel>/` for batches, `.../Single Videos/` for one-offs
+- **Two-level scheduler** — a global time window plus per-item schedules
+- **Proxy** — off / system / manual (HTTP, HTTPS, SOCKS5, SOCKS5h)
+- **Clipboard detection** — copying a YouTube link offers a one-click download
+- **System tray** — closing the window keeps the app running
+- **Hidden autostart** — Vidaro starts in the tray at boot without opening a window
+- **Bilingual UI** — Persian (RTL) and English, dark/light/system themes
+- **Self-provisioning tools** — yt-dlp and ffmpeg are fetched on first run, keeping the installer small
+
+### Development
+
+```bash
+npm install
+npm run tauri dev
+```
+
+Requires Node.js 20+, a Rust toolchain (rustup), and Visual Studio C++ Build Tools on Windows.
+
+### Build
+
+```bash
+npm run tauri build
+```
+
+Artifacts land in `src-tauri/target/release/bundle/`.
+
+### Architecture
+
+Each feature is a self-contained plugin: it owns its state, registers its own
+Tauri commands, and runs its own startup hook. `lib.rs` only wires them
+together, so adding a capability never means editing unrelated modules.
+
+### Notes
+
+- yt-dlp and ffmpeg are **not** bundled in the installer. They are downloaded
+  into the app data folder on first run (or from Settings → Download tools).
+- On networks where YouTube is filtered, configure a proxy in Settings.
+- Release builds use `lto = false` because thin-LTO breaks linking of the
+  `ring` crate on MSVC.

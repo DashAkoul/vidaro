@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vidaro YouTube Downloader</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="header">
+      <img src="icons/icon48.png" alt="Vidaro" class="logo">
+      <div class="title-container">
+        <h1>Vidaro</h1>
+        <span class="subtitle">YouTube Downloader</span>
+      </div>
+    </div>
+    
+    <div class="content">
+      <div id="current-url-section" class="section">
+        <h3>Current Page</h3>
+        <div id="current-url" class="url-display">Detecting...</div>
+        <div id="page-type" class="page-type-badge"></div>
+      </div>
+      
+      <div class="section">
+        <h3>Download Options</h3>
+        <div class="option-group">
+          <label>Format</label>
+          <select id="format-select">
+            <option value="mp4">Video (MP4)</option>
+            <option value="mp3">Audio Only (MP3)</option>
+          </select>
+        </div>
+        <div class="option-group" id="quality-group">
+          <label>Quality</label>
+          <select id="quality-select">
+            <option value="best">Best Available</option>
+            <option value="4320">8K (4320p)</option>
+            <option value="2160">4K (2160p)</option>
+            <option value="1440">2K (1440p)</option>
+            <option value="1080">Full HD (1080p)</option>
+            <option value="720">HD (720p)</option>
+            <option value="480">SD (480p)</option>
+            <option value="360">Low (360p)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="section">
+        <button id="download-btn" class="btn btn-primary" disabled>
+          <span class="btn-text">Download</span>
+          <span class="btn-loader hidden"></span>
+        </button>
+      </div>
+      
+      <div class="section">
+        <button id="open-app-btn" class="btn btn-secondary">
+          Open in Vidaro App
+        </button>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <a href="#" id="settings-link">Settings</a>
+      <span class="version">v1.1.0</span>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

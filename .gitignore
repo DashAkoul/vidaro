@@ -1,0 +1,44 @@
+# ---------- Node / frontend ----------
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- Rust / Tauri ----------
+src-tauri/target/
+src-tauri/gen/
+**/*.rs.bk
+
+# ---------- Bundled runtime tools (fetched by CI, never committed) ----------
+# yt-dlp / ffmpeg / ffprobe are downloaded at build time by .github/workflows/build.yml
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+binaries/
+*.7z
+*.zip
+yt-dlp.exe
+
+# ---------- Release snapshots ----------
+vidaro-release/
+
+# ---------- Tooling / editor ----------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.freebuff/
+.workbuddy-ai/
+
+# ---------- Logs ----------
+logs/
+*.log

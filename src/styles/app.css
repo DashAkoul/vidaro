@@ -1302,3 +1302,49 @@ input, textarea, select {
   -ms-user-select: text;
   user-select: text;
 }
+
+/* ============ v2 additions ============ */
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.schedule-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.schedule-inline input[type="time"] {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 5px;
+  font-size: 11.5px;
+}
+
+.status-chip.queued {
+  color: var(--text-muted);
+}
+
+.status-chip.scheduled {
+  color: var(--purple);
+  border-color: color-mix(in srgb, var(--purple) 45%, transparent);
+}
+
+.ghost-btn.small {
+  font-size: 11.5px;
+  padding: 3px 8px;
+}
+
+.settings-section .muted.small {
+  line-height: 1.55;
+}

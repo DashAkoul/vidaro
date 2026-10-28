@@ -9,6 +9,8 @@ export type ItemStatus =
 
 export type ItemStage = "download" | "merge" | "audio" | "done";
 
+export type PausedBy = "user" | "scheduler";
+
 export interface Item {
   id: string;
   url: string;
@@ -30,9 +32,9 @@ export interface Item {
   error: string | null;
   outputPath: string | null;
   createdAt: number;
-  // Scheduler (per-item)
   scheduleStart: string | null;
   scheduleEnd: string | null;
+  pausedBy: PausedBy | null;
 }
 
 export interface VideoEntry {
@@ -75,20 +77,19 @@ export interface Settings {
   subLangs: string;
   embedMetadata: boolean;
   embedThumbnail: boolean;
-  // Proxy
-  proxy: string;
   proxyMode: "off" | "system" | "manual";
   proxyHost: string;
   proxyPort: string;
-  // Scheduler (global)
   schedulerEnabled: boolean;
   schedulerStart: string;
   schedulerEnd: string;
-  // Auto-start
   autostartEnabled: boolean;
+  closeToTray: boolean;
+  clipboardWatch: boolean;
+  notifyOnClipboard: boolean;
 }
 
-export interface BinariesStatus {
+export interface ToolStatus {
   ready: boolean;
   ytdlpFound: boolean;
   ytdlpVersion: string | null;
@@ -96,6 +97,13 @@ export interface BinariesStatus {
   ytdlpPath: string;
   ffmpegPath: string;
   platform: string;
+}
+
+export interface ToolsProgress {
+  tool: string;
+  stage: "download" | "extract" | "done";
+  received: number;
+  total: number;
 }
 
 export interface HistoryEntry {
@@ -109,10 +117,25 @@ export interface HistoryEntry {
   batchName: string;
 }
 
-export interface BinariesProgress {
-  tool: string;
-  stage: string;
-  received: number;
-  total: number;
-  message: string;
+export interface AppInfo {
+  name: string;
+  version: string;
+  platform: string;
+  arch: string;
+  startedHidden: boolean;
+}
+
+export interface ClipboardLink {
+  url: string;
+}
+
+export interface EnqueuePayload {
+  items: { videoId: string; title: string; url: string; index: number | null }[];
+  dir: string;
+  batchName: string;
+  quality: string;
+  audioOnly: boolean;
+  numbering: boolean;
+  scheduleStart?: string;
+  scheduleEnd?: string;
 }

@@ -1,9 +1,10 @@
-import { useContext, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+
+import { useApp, type QueueFilter } from "../lib/app-context";
 import {
   cancelItem,
-  formatBytes,
-  formatEta,
-  formatSpeed,
+  clearFinished,
+  describeError,
   openDownloadFolder,
   pauseAll,
   pauseItem,
@@ -11,15 +12,13 @@ import {
   resumeAll,
   resumeItem,
   retryItem,
-  clearFinished,
   updateItemSchedule,
-} from "../api";
-import { I18nContext, type TKey } from "../i18n";
-import type { Item, ItemStatus } from "../types";
+} from "../lib/api";
+import { clampPercent, formatBytes, formatEta, formatSpeed } from "../lib/format";
+import { useI18n, type TKey } from "../lib/i18n";
+import type { Item, ItemStatus } from "../lib/types";
 
-export type QueueFilter = "all" | "downloading" | "completed" | "paused" | "failed";
-
-const STATUS_KEY: Record<ItemStatus, TKey> = {
+const STATUS_LABEL: Record<ItemStatus, TKey> = {
   queued: "statusQueued",
   active: "statusActive",
   paused: "statusPaused",
@@ -29,90 +28,110 @@ const STATUS_KEY: Record<ItemStatus, TKey> = {
   scheduled: "statusScheduled",
 };
 
-const STAGE_KEY: Record<string, TKey> = {
+const STAGE_LABEL: Record<string, TKey> = {
   download: "stageDownload",
   merge: "stageMerge",
   audio: "stageAudio",
   done: "stageDone",
 };
 
+const FILTERS: Record<QueueFilter, (item: Item) => boolean> = {
+  all: () => true,
+  downloading: (item) =>
+    item.status === "active" || item.status === "queued" || item.status === "scheduled",
+  completed: (item) => item.status === "completed",
+  paused: (item) => item.status === "paused",
+  failed: (item) => item.status === "error",
+};
+
 interface Group {
   key: string;
   title: string | null;
   items: Item[];
-  done: number;
-  bytes: number;
-  avgPercent: number;
+  completed: number;
+  averagePercent: number;
   hasActive: boolean;
 }
 
-const FILTER_FN: Record<QueueFilter, (i: Item) => boolean> = {
-  all: () => true,
-  downloading: (i) => i.status === "active" || i.status === "queued" || i.status === "scheduled",
-  completed: (i) => i.status === "completed",
-  paused: (i) => i.status === "paused",
-  failed: (i) => i.status === "error",
-};
-
-export default function Queue({
-  items,
-  filter,
-}: {
-  items: Item[];
-  filter: QueueFilter;
-}) {
-  const { t } = useContext(I18nContext);
+export default function Queue() {
+  const { t } = useI18n();
+  const { items, queueFilter } = useApp();
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const groups: Group[] = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = items.filter(FILTER_FN[filter]).filter((i) =>
-      q ? i.title.toLowerCase().includes(q) || i.batchName.toLowerCase().includes(q) : true,
-    );
+  const groups = useMemo<Group[]>(() => {
+    const query = search.trim().toLowerCase();
+    const visible = items
+      .filter(FILTERS[queueFilter])
+      .filter((item) =>
+        query
+          ? item.title.toLowerCase().includes(query) ||
+            item.batchName.toLowerCase().includes(query)
+          : true,
+      );
+
     const map = new Map<string, Group>();
-    for (const it of filtered) {
-      const key = it.batchName && it.batchName !== "untitled" ? it.batchName : "";
+    for (const item of visible) {
+      const key = item.batchName && item.batchName !== "untitled" ? item.batchName : "";
       if (!map.has(key)) {
-        map.set(key, { key, title: key || null, items: [], done: 0, bytes: 0, avgPercent: 0, hasActive: false });
+        map.set(key, {
+          key,
+          title: key || null,
+          items: [],
+          completed: 0,
+          averagePercent: 0,
+          hasActive: false,
+        });
       }
-      const g = map.get(key)!;
-      g.items.push(it);
-      if (it.status === "completed") {
-        g.done += 1;
-        g.bytes += it.totalBytes;
-      }
-      if (it.status === "active" || it.status === "queued") g.hasActive = true;
+      const group = map.get(key)!;
+      group.items.push(item);
+      if (item.status === "completed") group.completed += 1;
+      if (item.status === "active" || item.status === "queued") group.hasActive = true;
     }
-    for (const g of map.values()) {
-      g.avgPercent = g.items.reduce((s, i) => s + (i.status === "completed" ? 100 : i.percent), 0) / g.items.length;
-    }
+
     const list = [...map.values()];
+    for (const group of list) {
+      group.averagePercent =
+        group.items.reduce(
+          (sum, item) => sum + (item.status === "completed" ? 100 : clampPercent(item.percent)),
+          0,
+        ) / group.items.length;
+    }
+
     list.sort((a, b) => {
       if (!a.title && b.title) return 1;
       if (a.title && !b.title) return -1;
-      const at = a.items[0]?.createdAt ?? 0;
-      const bt = b.items[0]?.createdAt ?? 0;
-      return at - bt;
+      return (a.items[0]?.createdAt ?? 0) - (b.items[0]?.createdAt ?? 0);
     });
-    // groups with active downloads first
+    // Groups with live downloads float to the top.
     list.sort((a, b) => Number(b.hasActive) - Number(a.hasActive));
     return list;
-  }, [items, filter, search]);
+  }, [items, queueFilter, search]);
 
-  const toggle = (key: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
+  const hasPaused = items.some((item) => item.status === "paused");
+  const hasRunning = items.some(
+    (item) => item.status === "active" || item.status === "queued",
+  );
+  const hasFinished = items.some(
+    (item) => item.status === "completed" || item.status === "cancelled",
+  );
+
+  function toggleGroup(key: string) {
+    setCollapsed((current) => {
+      const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
-  };
+  }
 
-  const hasPaused = items.some((i) => i.status === "paused");
-  const hasRunning = items.some((i) => i.status === "active" || i.status === "queued");
-  const hasFinished = items.some((i) => i.status === "completed" || i.status === "cancelled");
-  const isEmpty = groups.length === 0;
+  async function guard(action: () => Promise<unknown>) {
+    try {
+      await action();
+    } catch (error) {
+      console.error(describeError(error));
+    }
+  }
 
   return (
     <div className="view">
@@ -121,52 +140,65 @@ export default function Queue({
           className="search-input"
           placeholder={t("search")}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(event) => setSearch(event.target.value)}
         />
         <div className="head-actions">
-          <button className="ghost-btn" onClick={() => pauseAll()} disabled={!hasRunning}>
+          <button
+            className="ghost-btn"
+            onClick={() => void guard(pauseAll)}
+            disabled={!hasRunning}
+          >
             ❚❚ {t("pauseAll")}
           </button>
-          <button className="ghost-btn" onClick={() => resumeAll()} disabled={!hasPaused}>
+          <button
+            className="ghost-btn"
+            onClick={() => void guard(resumeAll)}
+            disabled={!hasPaused}
+          >
             ▶ {t("resumeAll")}
           </button>
-          <button className="ghost-btn" onClick={() => clearFinished()} disabled={!hasFinished}>
+          <button
+            className="ghost-btn"
+            onClick={() => void guard(clearFinished)}
+            disabled={!hasFinished}
+          >
             {t("clearFinished")}
           </button>
         </div>
       </div>
 
-      {isEmpty ? (
+      {groups.length === 0 ? (
         <div className="empty">
           <div className="empty-icon">⇣</div>
           <p>{t("queueEmpty")}</p>
           <p className="muted small">{t("queueHint")}</p>
         </div>
       ) : (
-        groups.map((g) => {
-          const isOpen = !collapsed.has(g.key || "__singles__");
+        groups.map((group) => {
+          const key = group.key || "__singles__";
+          const open = !collapsed.has(key);
           return (
-            <div className={`accordion ${isOpen ? "open" : ""}`} key={g.key || "__singles__"}>
-              <button className="accordion-head" onClick={() => toggle(g.key || "__singles__")}>
-                <span className="chev">{isOpen ? "▾" : "▸"}</span>
-                <span className="group-icon">{g.title ? "📁" : "🎬"}</span>
-                <span className="group-name">{g.title ?? t("singleVideosGroup")}</span>
+            <div className={`accordion ${open ? "open" : ""}`} key={key}>
+              <button className="accordion-head" onClick={() => toggleGroup(key)}>
+                <span className="chev">{open ? "▾" : "▸"}</span>
+                <span className="group-icon">{group.title ? "📁" : "🎬"}</span>
+                <span className="group-name">{group.title ?? t("singleVideosGroup")}</span>
                 <span className="group-progress">
                   <span className="progress-track slim">
                     <span
-                      className={`progress-fill ${g.hasActive ? "active" : "completed"}`}
-                      style={{ width: `${g.avgPercent}%` }}
+                      className={`progress-fill ${group.hasActive ? "active" : "completed"}`}
+                      style={{ width: `${group.averagePercent}%` }}
                     />
                   </span>
                 </span>
                 <span className="group-count muted small">
-                  {g.done}/{g.items.length}
+                  {group.completed}/{group.items.length}
                 </span>
               </button>
-              {isOpen && (
+              {open && (
                 <div className="accordion-body">
-                  {g.items.map((item) => (
-                    <QueueRow key={item.id} item={item} t={t} />
+                  {group.items.map((item) => (
+                    <QueueRow key={item.id} item={item} onAction={guard} />
                   ))}
                 </div>
               )}
@@ -180,28 +212,20 @@ export default function Queue({
 
 function QueueRow({
   item,
-  t,
+  onAction,
 }: {
   item: Item;
-  t: (k: TKey, vars?: Record<string, string | number>) => string;
+  onAction: (action: () => Promise<unknown>) => Promise<void>;
 }) {
+  const { t } = useI18n();
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [start, setStart] = useState(item.scheduleStart ?? "");
+  const [end, setEnd] = useState(item.scheduleEnd ?? "");
+
+  const percent = clampPercent(item.percent);
   const running = item.status === "active";
-  const percent = Math.min(100, Math.max(0, item.percent));
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [schedStart, setSchedStart] = useState(item.scheduleStart || "");
-  const [schedEnd, setSchedEnd] = useState(item.scheduleEnd || "");
-
-  const handleSaveSchedule = async () => {
-    await updateItemSchedule(item.id, schedStart || null, schedEnd || null);
-    setShowSchedule(false);
-  };
-
-  const handleClearSchedule = async () => {
-    await updateItemSchedule(item.id, null, null);
-    setShowSchedule(false);
-  };
-
-  const canSchedule = item.status === "queued" || item.status === "scheduled" || item.status === "paused";
+  const canSchedule =
+    item.status === "queued" || item.status === "scheduled" || item.status === "paused";
 
   return (
     <div className={`dl-card ${item.status}`}>
@@ -211,12 +235,15 @@ function QueueRow({
             <span className="row-index">{String(item.index).padStart(3, "0")}</span>
           )}
           <span className="dl-title-text">{item.title}</span>
-          <span className="dl-percent">{item.status === "completed" ? "100%" : `${Math.floor(percent)}%`}</span>
+          <span className="dl-percent">
+            {item.status === "completed" ? "100%" : `${Math.floor(percent)}%`}
+          </span>
         </div>
+
         <div className="dl-sub">
           <span className={`status-chip ${item.status}`}>
-            {t(STATUS_KEY[item.status])}
-            {running ? ` · ${t(STAGE_KEY[item.stage] ?? "stageDownload")}` : ""}
+            {t(STATUS_LABEL[item.status])}
+            {running ? ` · ${t(STAGE_LABEL[item.stage] ?? "stageDownload")}` : ""}
           </span>
           {item.audioOnly && <span className="badge-chip">MP3</span>}
           {!item.audioOnly && item.quality !== "best" && (
@@ -227,7 +254,9 @@ function QueueRow({
               {formatBytes(item.downloadedBytes)} / {formatBytes(item.totalBytes)}
             </span>
           )}
-          {running && item.speedBps > 0 && <span className="dl-speed">{formatSpeed(item.speedBps)}</span>}
+          {running && item.speedBps > 0 && (
+            <span className="dl-speed">{formatSpeed(item.speedBps)}</span>
+          )}
           {running && item.etaSecs > 0 && (
             <span className="dl-eta">{t("eta", { v: formatEta(item.etaSecs) })}</span>
           )}
@@ -237,6 +266,7 @@ function QueueRow({
             </span>
           )}
         </div>
+
         <div className="progress-track card">
           <div
             className={`progress-fill ${item.status}`}
@@ -244,24 +274,44 @@ function QueueRow({
           />
         </div>
       </div>
+
       <div className="dl-actions">
         {(item.status === "active" || item.status === "queued") && (
-          <button className="icon-btn" title={t("pause")} onClick={() => pauseItem(item.id)}>
+          <button
+            className="icon-btn"
+            title={t("pause")}
+            onClick={() => void onAction(() => pauseItem(item.id))}
+          >
             ❚❚
           </button>
         )}
         {item.status === "paused" && (
-          <button className="icon-btn" title={t("resume")} onClick={() => resumeItem(item.id)}>
+          <button
+            className="icon-btn"
+            title={t("resume")}
+            onClick={() => void onAction(() => resumeItem(item.id))}
+          >
             ▶
           </button>
         )}
-        {(item.status === "active" || item.status === "queued" || item.status === "paused") && (
-          <button className="icon-btn danger" title={t("cancel")} onClick={() => cancelItem(item.id)}>
+        {(item.status === "active" ||
+          item.status === "queued" ||
+          item.status === "paused" ||
+          item.status === "scheduled") && (
+          <button
+            className="icon-btn danger"
+            title={t("cancel")}
+            onClick={() => void onAction(() => cancelItem(item.id))}
+          >
             ✕
           </button>
         )}
         {item.status === "error" && (
-          <button className="icon-btn" title={t("retry")} onClick={() => retryItem(item.id)}>
+          <button
+            className="icon-btn"
+            title={t("retry")}
+            onClick={() => void onAction(() => retryItem(item.id))}
+          >
             ↻
           </button>
         )}
@@ -269,36 +319,74 @@ function QueueRow({
           <button
             className="icon-btn"
             title={t("openFolder")}
-            onClick={() => openDownloadFolder(item.id)}
+            onClick={() => void onAction(() => openDownloadFolder(item.id))}
           >
             📂
           </button>
         )}
-        {canSchedule && !showSchedule && (
-          <button className="icon-btn" title={item.status === "scheduled" ? t("perItemSchedule") : t("perItemSchedule")} onClick={() => setShowSchedule(true)}>
+        {canSchedule && !editingSchedule && (
+          <button
+            className="icon-btn"
+            title={t("perItemSchedule")}
+            onClick={() => setEditingSchedule(true)}
+          >
             🕐
           </button>
         )}
-        {canSchedule && showSchedule && (
+        {canSchedule && editingSchedule && (
           <div className="schedule-inline">
             <input
               type="time"
-              value={schedStart}
-              onChange={(e) => setSchedStart(e.target.value)}
+              value={start}
+              onChange={(event) => setStart(event.target.value)}
               style={{ width: 100 }}
             />
             <input
               type="time"
-              value={schedEnd}
-              onChange={(e) => setSchedEnd(e.target.value)}
+              value={end}
+              onChange={(event) => setEnd(event.target.value)}
               style={{ width: 100 }}
             />
-            <button className="icon-btn" onClick={handleSaveSchedule} title={t("save")}>✓</button>
-            <button className="icon-btn" onClick={handleClearSchedule} title={t("clearSchedule")}>✕</button>
-            <button className="icon-btn" onClick={() => setShowSchedule(false)} title={t("dismiss")}>×</button>
+            <button
+              className="icon-btn"
+              title={t("save")}
+              onClick={() =>
+                void onAction(async () => {
+                  await updateItemSchedule(item.id, start || null, end || null);
+                  setEditingSchedule(false);
+                })
+              }
+            >
+              ✓
+            </button>
+            <button
+              className="icon-btn"
+              title={t("clearSchedule")}
+              onClick={() =>
+                void onAction(async () => {
+                  await updateItemSchedule(item.id, null, null);
+                  setStart("");
+                  setEnd("");
+                  setEditingSchedule(false);
+                })
+              }
+            >
+              ✕
+            </button>
+            <button
+              className="icon-btn"
+              title={t("dismiss")}
+              onClick={() => setEditingSchedule(false)}
+            >
+              ×
+            </button>
           </div>
         )}
-        <button className="icon-btn" title={t("remove")} onClick={() => removeItem(item.id)}>
+        <button
+          className="icon-btn"
+          title={t("remove")}
+          onClick={() => void onAction(() => removeItem(item.id))}
+        >
           🗑
         </button>
       </div>

@@ -1,227 +1,230 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+
+import { useApp } from "../lib/app-context";
 import {
   cancelFetch,
+  describeError,
   enqueueBatch,
   fetchInfo,
-  formatDuration,
   onInfoProgress,
-} from "../api";
-import { I18nContext } from "../i18n";
-import type { InfoResult, VideoEntry } from "../types";
-import { AppContext } from "../App";
+} from "../lib/api";
+import { formatDuration } from "../lib/format";
+import { useI18n } from "../lib/i18n";
+import type { InfoResult, VideoEntry } from "../lib/types";
 
 const STANDARD_HEIGHTS = [2160, 1440, 1080, 720, 480, 360];
 
-function heightLabel(h: number): string {
-  if (h >= 2160) return `${h}p (4K)`;
-  if (h >= 1440) return `${h}p (2K)`;
-  return `${h}p`;
+function heightLabel(height: number): string {
+  if (height >= 2160) return `${height}p (4K)`;
+  if (height >= 1440) return `${height}p (2K)`;
+  return `${height}p`;
 }
 
-export default function NewDownload({ pendingUrl }: { pendingUrl: string | null }) {
-  const { t } = useContext(I18nContext);
-  const app = AppContext.current;
+type KindHint = "auto" | "video" | "playlist" | "channel";
+
+export default function NewDownload() {
+  const { t } = useI18n();
+  const { settings, updateSettings, pendingUrl, consumePendingUrl, goTab } = useApp();
 
   const [url, setUrl] = useState("");
-  const [kindHint, setKindHint] = useState<"auto" | "video" | "playlist" | "channel">("auto");
+  const [kindHint, setKindHint] = useState<KindHint>("auto");
   const [fetching, setFetching] = useState(false);
-  const [infoMsg, setInfoMsg] = useState("");
+  const [progressMessage, setProgressMessage] = useState("");
   const [info, setInfo] = useState<InfoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [audioOnly, setAudioOnly] = useState(false);
   const [quality, setQuality] = useState("best");
-  const [dir, setDir] = useState(app?.settings.defaultDir ?? "");
+  const [dir, setDir] = useState(settings.defaultDir);
   const [notice, setNotice] = useState<string | null>(null);
   const [scheduleStart, setScheduleStart] = useState("");
   const [scheduleEnd, setScheduleEnd] = useState("");
 
   useEffect(() => {
-    const un = onInfoProgress((p) => {
-      if (p.message === "done") setInfoMsg("");
-      else setInfoMsg(p.message);
+    const subscription = onInfoProgress(({ message }) => {
+      setProgressMessage(message === "done" ? "" : message);
     });
     return () => {
-      un.then((f) => f());
+      subscription.then((off) => off()).catch(() => undefined);
     };
   }, []);
 
-  // a URL handed over from the clipboard toast / deep open
-  useEffect(() => {
-    if (pendingUrl) {
-      setUrl(pendingUrl);
+  const runFetch = useCallback(
+    async (target: string) => {
+      const trimmed = target.trim();
+      if (!trimmed) return;
+
+      setFetching(true);
       setError(null);
+      setInfo(null);
       setNotice(null);
-      void doFetchWith(pendingUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingUrl]);
+      setProgressMessage("");
+      try {
+        setInfo(await fetchInfo(trimmed, kindHint));
+      } catch (e) {
+        setError(describeError(e));
+      } finally {
+        setFetching(false);
+      }
+    },
+    [kindHint],
+  );
 
-  async function doFetchWith(u: string) {
-    if (!u.trim() || fetching) return;
-    setFetching(true);
-    setError(null);
-    setInfo(null);
-    setNotice(null);
-    setInfoMsg("");
-    try {
-      const res = await fetchInfo(u.trim(), kindHint);
-      setInfo(res);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setFetching(false);
-    }
-  }
-
-  // when info arrives, select all entries
+  // A link handed over by the clipboard toast.
   useEffect(() => {
-    if (info && info.kind === "collection") {
-      setSelected(new Set(info.entries.map((e) => e.index)));
-    }
-    if (info && info.kind === "video" && info.heights.length > 0) {
-      // default quality: best available up to 1080p, else the top one
-      const pick = info.heights.find((h) => h <= 1080) ?? info.heights[0];
-      setQuality(String(pick));
+    if (!pendingUrl) return;
+    setUrl(pendingUrl);
+    consumePendingUrl();
+    void runFetch(pendingUrl);
+  }, [pendingUrl, consumePendingUrl, runFetch]);
+
+  // Pick sensible defaults once the metadata arrives.
+  useEffect(() => {
+    if (!info) return;
+    if (info.kind === "collection") {
+      setSelected(new Set(info.entries.map((entry) => entry.index)));
+    } else if (info.heights.length > 0) {
+      setQuality(String(info.heights.find((h) => h <= 1080) ?? info.heights[0]));
     }
   }, [info]);
 
-  const heights = useMemo(() => {
-    if (info && info.kind === "video") return info.heights;
-    return STANDARD_HEIGHTS;
-  }, [info]);
-
-  async function doFetch() {
-    await doFetchWith(url);
-  }
+  const heights = useMemo(
+    () => (info?.kind === "video" ? info.heights : STANDARD_HEIGHTS),
+    [info],
+  );
 
   async function chooseDir(): Promise<string> {
     const picked = await open({ directory: true, multiple: false });
     if (typeof picked === "string" && picked) {
       setDir(picked);
-      app?.updateSettings({ defaultDir: picked });
+      updateSettings({ defaultDir: picked });
       return picked;
     }
     return dir;
   }
 
+  function toggle(index: number) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
   async function addToQueue() {
     if (!info) return;
-    if (!dir) {
-      const picked = await chooseDir();
-      if (!picked) {
+
+    let destination = dir;
+    if (!destination) {
+      destination = await chooseDir();
+      if (!destination) {
         setNotice(t("chooseFolderFirst"));
         return;
       }
     }
     setNotice(null);
 
-    let payloadItems: { videoId: string; title: string; url: string; index: number | null }[] = [];
-    let batchName = "";
-    let numbering = false;
+    const entries: { videoId: string; title: string; url: string; index: number | null }[] =
+      info.kind === "video"
+        ? [{ videoId: info.id, title: info.title, url: url.trim(), index: null }]
+        : info.entries
+            .filter((entry) => selected.has(entry.index))
+            .map((entry: VideoEntry) => ({
+              videoId: entry.id,
+              title: entry.title,
+              url: entry.url,
+              index: entry.index,
+            }));
 
-    if (info.kind === "video") {
-      payloadItems = [
-        {
-          videoId: info.id,
-          title: info.title,
-          url: url.trim(),
-          index: null,
-        },
-      ];
-    } else {
-      const entries = info.entries.filter((e) => selected.has(e.index));
-      if (entries.length === 0) {
-        setNotice(t("noSelection"));
-        return;
-      }
-      payloadItems = entries.map((e: VideoEntry) => ({
-        videoId: e.id,
-        title: e.title,
-        url: e.url,
-        index: e.index,
-      }));
-      batchName = info.title;
-      numbering = true;
+    if (entries.length === 0) {
+      setNotice(t("noSelection"));
+      return;
     }
 
     try {
       await enqueueBatch({
-        items: payloadItems,
-        dir,
-        batchName,
+        items: entries,
+        dir: destination,
+        batchName: info.kind === "collection" ? info.title : "",
         quality,
         audioOnly,
-        numbering,
+        numbering: info.kind === "collection",
         scheduleStart: scheduleStart || undefined,
         scheduleEnd: scheduleEnd || undefined,
       });
-      // reset view
+
       setInfo(null);
       setUrl("");
       setSelected(new Set());
       setScheduleStart("");
       setScheduleEnd("");
-      app?.goTab("queue");
+      goTab("queue");
     } catch (e) {
-      setError(String(e));
+      setError(describeError(e));
     }
   }
-
-  const toggle = (idx: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
 
   const isCollection = info?.kind === "collection";
   const selectedCount = isCollection ? selected.size : info ? 1 : 0;
 
   return (
     <div className="view">
-      <h1>{t("tabNew")}</h1>
-
       <div className="url-row">
         <input
           className="url-input"
           placeholder={t("urlPlaceholder")}
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && doFetch()}
+          onChange={(event) => setUrl(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void runFetch(url);
+          }}
           dir="ltr"
+          spellCheck={false}
         />
         {fetching ? (
-          <button className="btn secondary" onClick={() => cancelFetch()} disabled>
+          <button className="btn secondary" onClick={() => void cancelFetch()}>
             {t("fetching")}
           </button>
         ) : (
-          <button className="btn primary" onClick={doFetch} disabled={!url.trim()}>
+          <button
+            className="btn primary"
+            onClick={() => void runFetch(url)}
+            disabled={!url.trim()}
+          >
             {t("fetchBtn")}
           </button>
         )}
       </div>
 
       <div className="kind-row">
-        {(["auto", "video", "playlist", "channel"] as const).map((k) => (
+        {(["auto", "video", "playlist", "channel"] as const).map((kind) => (
           <button
-            key={k}
-            className={`chip ${kindHint === k ? "active" : ""}`}
-            onClick={() => setKindHint(k)}
+            key={kind}
+            className={`chip ${kindHint === kind ? "active" : ""}`}
+            onClick={() => setKindHint(kind)}
           >
-            {k === "auto" ? "Auto" : t(k === "video" ? "typeVideo" : k === "playlist" ? "typePlaylist" : "typeChannel")}
+            {kind === "auto"
+              ? t("kindAuto")
+              : kind === "video"
+                ? t("typeVideo")
+                : kind === "playlist"
+                  ? t("typePlaylist")
+                  : t("typeChannel")}
           </button>
         ))}
-        {infoMsg && <span className="muted small">{infoMsg}</span>}
+        {progressMessage && <span className="muted small">{progressMessage}</span>}
       </div>
 
-      {error && <div className="error-box">{t("fetchFailed")} <code>{error}</code></div>}
+      {error && (
+        <div className="error-box">
+          {t("fetchFailed")} <code>{error}</code>
+        </div>
+      )}
       {notice && <div className="notice-box">{notice}</div>}
 
-      {info && info.kind === "video" && (
+      {info?.kind === "video" && (
         <div className="video-card">
           {info.thumbnail && <img className="thumb" src={info.thumbnail} alt="" />}
           <div className="video-meta">
@@ -234,34 +237,29 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
         </div>
       )}
 
-      {isCollection && (
+      {info?.kind === "collection" && (
         <div className="collection">
           <div className="collection-head">
-            {info.kind === "collection" && info.thumbnail && (
-              <img className="thumb small" src={info.thumbnail} alt="" />
-            )}
+            {info.thumbnail && <img className="thumb small" src={info.thumbnail} alt="" />}
             <div>
-              <div className="video-title">
-                {info.kind === "collection" && info.title}
-              </div>
+              <div className="video-title">{info.title}</div>
               <div className="muted small">
                 <span className="badge-chip">
-                  {info.kind === "collection" && info.collType === "channel"
-                    ? t("typeChannel")
-                    : t("typePlaylist")}
+                  {info.collType === "channel" ? t("typeChannel") : t("typePlaylist")}
                 </span>{" "}
-                {info.kind === "collection" && info.uploader && `${t("by")} ${info.uploader} · `}
-                {info.kind === "collection" && t("videosCount", { n: info.entries.length })}
+                {info.uploader && `${t("by")} ${info.uploader} · `}
+                {t("videosCount", { n: info.entries.length })}
               </div>
             </div>
           </div>
 
-          {info.kind === "collection" && info.truncated && (
-            <div className="notice-box">{t("truncated")}</div>
-          )}
+          {info.truncated && <div className="notice-box">{t("truncated")}</div>}
 
           <div className="list-tools">
-            <button className="ghost-btn" onClick={() => setSelected(new Set(info.entries.map((e) => e.index)))}>
+            <button
+              className="ghost-btn"
+              onClick={() => setSelected(new Set(info.entries.map((e) => e.index)))}
+            >
               {t("selectAll")}
             </button>
             <button className="ghost-btn" onClick={() => setSelected(new Set())}>
@@ -271,20 +269,21 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
           </div>
 
           <div className="video-list">
-            {info.kind === "collection" &&
-              info.entries.map((e) => (
-                <label key={e.id} className="video-row">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(e.index)}
-                    onChange={() => toggle(e.index)}
-                  />
-                  <span className="row-index">{String(e.index).padStart(3, "0")}</span>
-                  {e.thumbnail && <img className="row-thumb" src={e.thumbnail} alt="" loading="lazy" />}
-                  <span className="row-title">{e.title}</span>
-                  <span className="row-duration">{formatDuration(e.duration)}</span>
-                </label>
-              ))}
+            {info.entries.map((entry) => (
+              <label key={entry.id} className="video-row">
+                <input
+                  type="checkbox"
+                  checked={selected.has(entry.index)}
+                  onChange={() => toggle(entry.index)}
+                />
+                <span className="row-index">{String(entry.index).padStart(3, "0")}</span>
+                {entry.thumbnail && (
+                  <img className="row-thumb" src={entry.thumbnail} alt="" loading="lazy" />
+                )}
+                <span className="row-title">{entry.title}</span>
+                <span className="row-duration">{formatDuration(entry.duration)}</span>
+              </label>
+            ))}
           </div>
         </div>
       )}
@@ -294,10 +293,16 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
           <div className="option">
             <span className="option-label">{t("format")}</span>
             <div className="seg">
-              <button className={`seg-btn ${!audioOnly ? "active" : ""}`} onClick={() => setAudioOnly(false)}>
+              <button
+                className={`seg-btn ${audioOnly ? "" : "active"}`}
+                onClick={() => setAudioOnly(false)}
+              >
                 {t("videoFormat")}
               </button>
-              <button className={`seg-btn ${audioOnly ? "active" : ""}`} onClick={() => setAudioOnly(true)}>
+              <button
+                className={`seg-btn ${audioOnly ? "active" : ""}`}
+                onClick={() => setAudioOnly(true)}
+              >
                 {t("audioFormat")}
               </button>
             </div>
@@ -306,11 +311,11 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
           {!audioOnly && (
             <div className="option">
               <span className="option-label">{t("quality")}</span>
-              <select value={quality} onChange={(e) => setQuality(e.target.value)}>
+              <select value={quality} onChange={(event) => setQuality(event.target.value)}>
                 <option value="best">{t("best")}</option>
-                {heights.map((h) => (
-                  <option key={h} value={String(h)}>
-                    {heightLabel(h)}
+                {heights.map((height) => (
+                  <option key={height} value={String(height)}>
+                    {heightLabel(height)}
                   </option>
                 ))}
               </select>
@@ -321,7 +326,7 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
             <span className="option-label">{t("destination")}</span>
             <div className="dir-row">
               <input className="dir-input" value={dir} readOnly dir="ltr" placeholder="…" />
-              <button className="btn secondary" onClick={chooseDir}>
+              <button className="btn secondary" onClick={() => void chooseDir()}>
                 {t("chooseFolder")}
               </button>
             </div>
@@ -335,19 +340,25 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
               <input
                 type="time"
                 value={scheduleStart}
-                onChange={(e) => setScheduleStart(e.target.value)}
+                onChange={(event) => setScheduleStart(event.target.value)}
                 style={{ width: 120 }}
               />
               <span style={{ alignSelf: "center" }}>{t("scheduleStart")}</span>
               <input
                 type="time"
                 value={scheduleEnd}
-                onChange={(e) => setScheduleEnd(e.target.value)}
+                onChange={(event) => setScheduleEnd(event.target.value)}
                 style={{ width: 120 }}
               />
               <span style={{ alignSelf: "center" }}>{t("scheduleEnd")}</span>
               {(scheduleStart || scheduleEnd) && (
-                <button className="ghost-btn small" onClick={() => { setScheduleStart(""); setScheduleEnd(""); }}>
+                <button
+                  className="ghost-btn small"
+                  onClick={() => {
+                    setScheduleStart("");
+                    setScheduleEnd("");
+                  }}
+                >
                   {t("clearSchedule")}
                 </button>
               )}
@@ -359,7 +370,7 @@ export default function NewDownload({ pendingUrl }: { pendingUrl: string | null 
             </div>
           </div>
 
-          <button className="btn primary big" onClick={addToQueue}>
+          <button className="btn primary big" onClick={() => void addToQueue()}>
             {t("addToQueue", { n: selectedCount })}
           </button>
         </div>

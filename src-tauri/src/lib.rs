@@ -30,11 +30,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            // Booting the machine must not pop a window open.
-            Some(vec!["--hidden"]),
-        ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             crate::features::system::window::show_main_window(app);
         }))

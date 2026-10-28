@@ -136,12 +136,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     unlisten.push(
       api.onSettingsChanged((next) => {
-        // Only adopt server-side changes we did not originate (e.g. import).
-        setSettings((current) =>
-          current && current.language === next.language && current.theme === next.theme
-            ? current
-            : next,
-        );
+        // Ignore the echo of a save that is still being written: a local edit
+        // that happened after the request would otherwise be reverted.
+        if (saveTimer.current !== null) return;
+        setSettings(next);
       }),
     );
 
@@ -195,6 +193,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
+        saveTimer.current = null;
         void api.setSettings(next).catch((error) => {
           console.error("could not save settings", error);
         });

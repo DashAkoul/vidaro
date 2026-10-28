@@ -68,8 +68,8 @@ pub fn set_autostart(
     config: State<'_, ConfigStore>,
     enabled: bool,
 ) -> AppResult<Settings> {
+    autostart::set_enabled(enabled)?;
     let saved = config.update(|settings| settings.autostart_enabled = enabled)?;
-    autostart::reconcile(&app, enabled);
     events::emit(&app, events::SETTINGS_CHANGED, &saved);
     Ok(saved)
 }

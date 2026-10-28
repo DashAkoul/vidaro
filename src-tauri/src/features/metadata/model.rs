@@ -15,7 +15,7 @@ pub struct VideoEntry {
 }
 
 #[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase", tag = "kind")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "kind")]
 pub enum InfoResult {
     Video {
         id: String,

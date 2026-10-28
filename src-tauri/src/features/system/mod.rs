@@ -17,8 +17,12 @@ impl Plugin for SystemPlugin {
     fn startup(&self, ctx: &AppContext) -> crate::core::error::AppResult<()> {
         let settings = ctx.settings();
 
-        tray::build(&ctx.app)
-            .map_err(|e| crate::core::error::AppError::Tool(e.to_string()))?;
+        // If the tray cannot be created while starting hidden, the window would
+        // be unreachable — fall back to showing it.
+        if let Err(e) = tray::build(&ctx.app) {
+            eprintln!("[system] tray unavailable: {e}");
+            window::show_main_window(&ctx.app);
+        }
 
         if settings.clipboard_watch {
             clipboard::spawn(ctx.app.clone());

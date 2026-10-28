@@ -22,10 +22,22 @@ the lifetime of the process instead of running on every `binaries_status` call.
 
 **Autostart forced itself on, and showed the window**
 `setup()` called `autostart_manager.enable()` unconditionally on Windows,
-ignoring the user's setting. The entry is now registered with `--hidden` and
-reconciled against the stored preference, so booting the machine starts Vidaro
-silently in the tray. The window is created hidden in `tauri.conf.json` and only
-shown on a normal launch, which also removes the white flash before React mounts.
+ignoring the user's setting. Worse, `tauri-plugin-autostart` never actually
+wrote the registry value in a release build, so the argument-less entry left
+behind by 1.x was never corrected and the app kept opening at login.
+
+Login-item registration is now owned by Vidaro (`features/system/autostart.rs`)
+and always writes the command line with `--hidden`:
+
+| Platform | Mechanism |
+| --- | --- |
+| Windows | `HKCU\...\Run\Vidaro` = `"<exe>" --hidden` |
+| macOS | `~/Library/LaunchAgents/com.akoul.yt-downloader.plist` |
+| Linux | `~/.config/autostart/vidaro.desktop` |
+
+Enabling always rewrites the entry, so a stale 1.x entry repairs itself on the
+next launch. The window is created hidden in `tauri.conf.json` and only shown on
+a normal launch, which also removes the white flash before React mounts.
 
 **Downloads disappeared from `queue.json`**
 `persist_queue` used `try_lock` and silently skipped any item that was mid-write,
@@ -109,6 +121,8 @@ with progress events was added for Windows, macOS and Linux.
   and MAX_PATH overflows.
 - Removed unused dependencies (`tauri-plugin-global-shortcut`, `serde_bytes`,
   `byteorder`).
+- Replaced `tauri-plugin-autostart` with a small first-party implementation so
+  the login command line is under our control (adds `winreg` on Windows only).
 
 ### Removed
 

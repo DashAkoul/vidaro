@@ -44,6 +44,13 @@ a normal launch, which also removes the white flash before React mounts.
 so an active download could vanish from the persisted queue. Item state now uses
 a short-lived blocking mutex, so every save captures the full queue.
 
+**Concurrent saves could corrupt `queue.json` and lose history entries**
+Several downloads finishing together each wrote the same temp file before
+renaming it into place, so interleaved writes could publish a truncated
+document. `history::add` had the mirror problem: two completions loaded the same
+snapshot and one entry was dropped. Both read-modify-write paths are now
+serialised with a mutex.
+
 **Global scheduler paused items without stopping them**
 It only rewrote the status string; the yt-dlp child kept running, and resuming
 spawned a second process for the same item. Pausing now kills the child, and a

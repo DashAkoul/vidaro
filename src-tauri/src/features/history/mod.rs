@@ -3,6 +3,7 @@
 pub mod commands;
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager as _};
@@ -10,6 +11,12 @@ use tauri::{AppHandle, Manager as _};
 use crate::core::paths::AppPaths;
 
 const MAX_ENTRIES: usize = 500;
+
+/// Serialises read-modify-write cycles on `history.json`.
+///
+/// `add` loads, prepends and saves. Two downloads completing together would
+/// otherwise each load the same snapshot and one entry would be lost.
+static HISTORY_GUARD: Mutex<()> = Mutex::new(());
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -58,6 +65,10 @@ pub fn save(app: &AppHandle, entries: &[HistoryEntry]) -> std::io::Result<()> {
 
 /// Prepend an entry, keeping the log bounded.
 pub fn add(app: &AppHandle, entry: HistoryEntry) {
+    let _guard = HISTORY_GUARD
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let mut all = load(app);
     all.retain(|existing| existing.id != entry.id);
     all.insert(0, entry);
@@ -67,8 +78,20 @@ pub fn add(app: &AppHandle, entry: HistoryEntry) {
     }
 }
 
+/// Drop every entry.
+pub fn clear(app: &AppHandle) -> std::io::Result<()> {
+    let _guard = HISTORY_GUARD
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    save(app, &[])
+}
+
 /// Merge imported entries, skipping duplicates.
 pub fn merge(app: &AppHandle, incoming: Vec<HistoryEntry>) {
+    let _guard = HISTORY_GUARD
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let mut all = load(app);
     for entry in incoming {
         if !all.iter().any(|e| e.id == entry.id) {

@@ -14,7 +14,7 @@ pub fn get_history(app: AppHandle) -> Vec<HistoryEntry> {
 
 #[tauri::command]
 pub fn clear_history(app: AppHandle) -> AppResult<()> {
-    history::save(&app, &[]).map_err(|e| AppError::Io(e))
+    history::clear(&app).map_err(AppError::Io)
 }
 
 /// Reveal a file in Explorer / Finder, or open its folder.

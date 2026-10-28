@@ -194,7 +194,18 @@ impl Manager {
     }
 }
 
+/// Serialises writes to `queue.json`.
+///
+/// Several downloads can finish in the same instant, and each one persists the
+/// queue. Without this guard two writers could interleave inside the same temp
+/// file and then rename a corrupted document into place.
+static PERSIST_GUARD: Mutex<()> = Mutex::new(());
+
 pub fn save_to(path: &Path, queue: &Queue) -> AppResult<()> {
+    let _guard = PERSIST_GUARD
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let items = queue.snapshot();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;

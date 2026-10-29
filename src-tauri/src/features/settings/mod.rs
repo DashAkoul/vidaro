@@ -40,7 +40,9 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 pub fn get_settings(app: AppHandle, config: State<'_, ConfigStore>) -> Settings {
     let mut settings = config.get();
     if settings.default_dir.trim().is_empty() {
-        settings.default_dir = default_download_root(&app);
+        if let Some(dir) = default_download_root(&app) {
+            settings.default_dir = dir;
+        }
     }
     settings
 }

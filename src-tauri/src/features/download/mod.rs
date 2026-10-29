@@ -46,6 +46,12 @@ pub fn enqueue_single(
     quality: &str,
     audio_only: bool,
 ) -> AppResult<Item> {
+    // The URL can come from the browser extension, so validate before it
+    // reaches the yt-dlp command line.
+    let Some(url) = crate::features::metadata::url::normalize_url(url) else {
+        return Err(AppError::Invalid(format!("not a valid URL: {url}")));
+    };
+
     let manager = app
         .try_state::<Manager>()
         .ok_or_else(|| AppError::Tool("queue not initialised".into()))?;
@@ -55,7 +61,9 @@ pub fn enqueue_single(
         .unwrap_or_default();
 
     let root = if settings.default_dir.trim().is_empty() {
-        PathBuf::from(crate::core::config::default_download_root(app))
+        crate::core::config::default_download_root(app)
+            .map(PathBuf::from)
+            .ok_or_else(|| AppError::Invalid("no download folder configured".into()))?
     } else {
         PathBuf::from(&settings.default_dir)
     };
@@ -68,7 +76,7 @@ pub fn enqueue_single(
     std::fs::create_dir_all(&destination)?;
     let destination_str = destination.to_string_lossy().to_string();
 
-    let video_id = extract_video_id(url);
+    let video_id = extract_video_id(&url);
     let duplicate = manager.queue.all().iter().any(|inner| {
         inner.with_item(|item| {
             item.video_id == video_id
@@ -82,7 +90,7 @@ pub fn enqueue_single(
 
     let item = Item {
         id: uuid::Uuid::new_v4().to_string(),
-        url: url.to_string(),
+        url,
         video_id,
         title: if title.trim().is_empty() {
             "Untitled".to_string()

@@ -6,6 +6,50 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.1] — 2026-10-29
+
+A review pass over 2.0.0. One security fix and several concurrency fixes.
+
+### Security
+
+- **Command-line injection through the download URL.** yt-dlp parses its final
+  argument as a URL *or* as an option, and the URL can arrive from the browser
+  extension over native messaging. A crafted value such as `--exec=calc` was
+  passed straight through and executed as a yt-dlp flag. Every entry point now
+  runs the URL through `normalize_url`, which rejects anything starting with `-`,
+  containing whitespace, or not resolving to an absolute http(s) URL. Bare hosts
+  (`youtube.com/watch?v=…`) are still accepted and upgraded to `https://`.
+
+### Fixed
+
+- **Two processes could run for one item.** Nothing stopped a second resume —
+  a double click, or the scheduler racing the user — from spawning another
+  yt-dlp process writing to the same output file. `ItemInner::begin_run` now
+  hands out an exclusive claim, and a retry that overlaps a cancelling run waits
+  briefly instead of being dropped (which left the item stuck in "Queued").
+- **Removed items came back.** A control command or a finishing download could
+  emit `item-updated` after the item was removed, and the UI re-added it. The
+  backend skips events for items no longer in the queue, and the frontend no
+  longer appends unknown ids (new items always arrive via `queue-changed`).
+- **`default_download_root` could return an error message as a path.** When the
+  platform failed to resolve a downloads folder, the fallback stringified an
+  `AppError` and used it as the destination directory. It now returns `None`
+  and callers ask the user instead.
+- **Concurrent tool installs corrupted each other.** Two installs wrote the same
+  temp file; the manager now takes an install claim and returns a clear error.
+
+### Changed
+
+- `binaries_status` is async and probes `yt-dlp --version` on a blocking thread,
+  so the first call cannot stall the UI.
+- Settings updates are serialised, so two concurrent read-modify-write cycles
+  cannot overwrite each other.
+- The destination folder in New Download follows changes made in Settings.
+- Queue rows are memoised and the sidebar badge counts are computed in one pass,
+  which cuts re-renders during progress updates.
+
+---
+
 ## [2.0.0] — 2026-10-29
 
 A structural rewrite: the flat backend became a plugin architecture, and every

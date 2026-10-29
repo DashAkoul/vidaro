@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 import { useApp, type QueueFilter } from "../lib/app-context";
 import { useI18n } from "../lib/i18n";
 
@@ -14,15 +16,32 @@ export default function Sidebar() {
   const { t } = useI18n();
   const { items, tab, queueFilter, goTab } = useApp();
 
-  const counts = {
-    all: items.length,
-    downloading: items.filter(
-      (i) => i.status === "active" || i.status === "queued" || i.status === "scheduled",
-    ).length,
-    completed: items.filter((i) => i.status === "completed").length,
-    paused: items.filter((i) => i.status === "paused").length,
-    failed: items.filter((i) => i.status === "error").length,
-  };
+  // Progress events arrive several times a second per download, so the badge
+  // counts are memoised rather than recomputed on every parent render.
+  const counts = useMemo(() => {
+    const result = { all: items.length, downloading: 0, completed: 0, paused: 0, failed: 0 };
+    for (const item of items) {
+      switch (item.status) {
+        case "active":
+        case "queued":
+        case "scheduled":
+          result.downloading += 1;
+          break;
+        case "completed":
+          result.completed += 1;
+          break;
+        case "paused":
+          result.paused += 1;
+          break;
+        case "error":
+          result.failed += 1;
+          break;
+        default:
+          break;
+      }
+    }
+    return result;
+  }, [items]);
 
   const filterEntries: { filter: QueueFilter; icon: string; label: string }[] = [
     { filter: "all", icon: "▣", label: t("tabQueue") },

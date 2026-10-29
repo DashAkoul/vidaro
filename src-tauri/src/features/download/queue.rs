@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -20,10 +20,23 @@ pub struct Control {
     pub cancelled: bool,
 }
 
+/// Held for as long as a task is driving an item, so a second resume cannot
+/// start a duplicate yt-dlp process writing to the same file.
+pub struct RunGuard {
+    inner: Arc<ItemInner>,
+}
+
+impl Drop for RunGuard {
+    fn drop(&mut self) {
+        self.inner.running.store(false, Ordering::SeqCst);
+    }
+}
+
 pub struct ItemInner {
     item: Mutex<Item>,
     child: tokio::sync::Mutex<Option<tokio::process::Child>>,
     pub control: Mutex<Control>,
+    running: AtomicBool,
 }
 
 impl ItemInner {
@@ -35,7 +48,16 @@ impl ItemInner {
                 paused: false,
                 cancelled: false,
             }),
+            running: AtomicBool::new(false),
         })
+    }
+
+    /// Claim the item for this task. Returns `None` when it is already running.
+    pub fn begin_run(self: &Arc<Self>) -> Option<RunGuard> {
+        if self.running.swap(true, Ordering::SeqCst) {
+            return None;
+        }
+        Some(RunGuard { inner: self.clone() })
     }
 
     /// Cheap clone of the current state, for events and persistence.

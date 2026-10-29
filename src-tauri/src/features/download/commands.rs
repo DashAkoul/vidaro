@@ -10,9 +10,10 @@ use crate::core::events;
 use crate::core::filename::{is_plausible_dir, safe_join, sanitize_name};
 use crate::features::download::control;
 use crate::features::download::model::{
-    EnqueuePayload, Item, ItemStatus, PausedBy, Stage,
+    EnqueuePayload, Item, ItemStatus, NewItem, PausedBy, Stage,
 };
 use crate::features::download::queue::{self, ItemInner, Manager};
+use crate::features::metadata::url::normalize_url;
 
 #[tauri::command]
 pub async fn enqueue_batch(
@@ -32,6 +33,20 @@ pub async fn enqueue_batch(
     }
     if payload.items.is_empty() {
         return Err(AppError::Invalid("no videos selected".into()));
+    }
+
+    // Normalise (and validate) every URL before touching the queue, so a bad
+    // entry cannot leave a half-added batch behind. This is also the security
+    // boundary: an option-looking string must never reach yt-dlp.
+    let mut requested: Vec<(NewItem, String)> = Vec::with_capacity(payload.items.len());
+    for entry in payload.items {
+        let Some(url) = normalize_url(&entry.url) else {
+            return Err(AppError::Invalid(format!(
+                "not a valid URL: {}",
+                entry.url
+            )));
+        };
+        requested.push((entry, url));
     }
 
     let root = PathBuf::from(&payload.dir);
@@ -60,7 +75,7 @@ pub async fn enqueue_batch(
 
     let mut created: Vec<Item> = Vec::new();
 
-    for entry in payload.items {
+    for (entry, url) in requested {
         let duplicate = existing.iter().any(|(video_id, dir, status)| {
             video_id == &entry.video_id
                 && dir == &destination_str
@@ -79,7 +94,7 @@ pub async fn enqueue_batch(
 
         let item = Item {
             id: uuid::Uuid::new_v4().to_string(),
-            url: entry.url,
+            url,
             video_id: entry.video_id,
             title: entry.title,
             index: if payload.numbering { entry.index } else { None },

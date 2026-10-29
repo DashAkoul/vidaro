@@ -21,6 +21,13 @@ pub fn set_status(
     status: ItemStatus,
     paused_by: Option<PausedBy>,
 ) {
+    // A control command may finish after the user removed the item; emitting
+    // then would make the UI show it again.
+    let id = inner.with_item(|item| item.id.clone());
+    if queue.get(&id).is_none() {
+        return;
+    }
+
     let snapshot = inner.with_item(|item| {
         item.status = status;
         item.paused_by = paused_by;

@@ -118,9 +118,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       api.onItemUpdated((updated) => {
         setItems((current) => {
           const index = current.findIndex((item) => item.id === updated.id);
-          if (index === -1) {
-            return [...current, updated].sort((a, b) => a.createdAt - b.createdAt);
-          }
+          // New items always arrive through `queue-changed`, which refetches the
+          // whole queue. Ignoring unknown ids here keeps a late event from
+          // re-adding an item the user just removed.
+          if (index === -1) return current;
           const next = current.slice();
           next[index] = updated;
           return next;

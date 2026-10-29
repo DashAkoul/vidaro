@@ -5,7 +5,8 @@ pub mod installer;
 pub mod paths;
 
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -29,26 +30,58 @@ pub struct ToolStatus {
 }
 
 /// Owns binary locations and caches the (expensive) yt-dlp version probe.
+///
+/// Cloning is cheap (one `Arc`), which lets a command move the manager into a
+/// blocking task instead of stalling the UI thread on the probe.
+#[derive(Clone)]
 pub struct ToolManager {
+    inner: Arc<ToolInner>,
+}
+
+struct ToolInner {
     paths: RwLock<ToolPaths>,
     version: RwLock<Option<String>>,
     probe_done: RwLock<bool>,
     app_paths: AppPaths,
+    /// Guards against two concurrent installs writing the same temp file.
+    installing: AtomicBool,
+}
+
+/// Clears the install flag however the operation ends.
+struct InstallGuard<'a>(&'a AtomicBool);
+
+impl Drop for InstallGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
 }
 
 impl ToolManager {
     pub fn new(app: &AppHandle, app_paths: AppPaths) -> Self {
         let resolved = paths::resolve(app, &app_paths);
         Self {
-            paths: RwLock::new(resolved),
-            version: RwLock::new(None),
-            probe_done: RwLock::new(false),
-            app_paths,
+            inner: Arc::new(ToolInner {
+                paths: RwLock::new(resolved),
+                version: RwLock::new(None),
+                probe_done: RwLock::new(false),
+                app_paths,
+                installing: AtomicBool::new(false),
+            }),
         }
     }
 
+    fn begin_install(&self) -> AppResult<InstallGuard<'_>> {
+        if self.inner.installing.swap(true, Ordering::SeqCst) {
+            return Err(AppError::Invalid(
+                "an installation is already in progress".into(),
+            ));
+        }
+        Ok(InstallGuard(&self.inner.installing))
+    }
+
     pub fn paths(&self) -> ToolPaths {
-        self.paths
+        self.inner
+            .paths
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
@@ -56,14 +89,14 @@ impl ToolManager {
 
     /// Re-resolve after installing/updating a binary.
     pub fn refresh(&self, app: &AppHandle) {
-        let resolved = paths::resolve(app, &self.app_paths);
-        if let Ok(mut guard) = self.paths.write() {
+        let resolved = paths::resolve(app, &self.inner.app_paths);
+        if let Ok(mut guard) = self.inner.paths.write() {
             *guard = resolved;
         }
-        if let Ok(mut guard) = self.version.write() {
+        if let Ok(mut guard) = self.inner.version.write() {
             *guard = None;
         }
-        if let Ok(mut guard) = self.probe_done.write() {
+        if let Ok(mut guard) = self.inner.probe_done.write() {
             *guard = false;
         }
     }
@@ -73,9 +106,9 @@ impl ToolManager {
     /// The probe runs with a hidden console window (see `core::process`), which
     /// is what used to cause a terminal to flash on every app launch.
     pub fn ytdlp_version(&self) -> Option<String> {
-        if let Ok(done) = self.probe_done.read() {
+        if let Ok(done) = self.inner.probe_done.read() {
             if *done {
-                return self.version.read().ok().and_then(|g| g.clone());
+                return self.inner.version.read().ok().and_then(|g| g.clone());
             }
         }
 
@@ -86,10 +119,10 @@ impl ToolManager {
             None
         };
 
-        if let Ok(mut guard) = self.version.write() {
+        if let Ok(mut guard) = self.inner.version.write() {
             *guard = version.clone();
         }
-        if let Ok(mut guard) = self.probe_done.write() {
+        if let Ok(mut guard) = self.inner.probe_done.write() {
             *guard = true;
         }
         version
@@ -115,18 +148,19 @@ impl ToolManager {
     }
 
     pub fn bin_dir(&self) -> PathBuf {
-        self.app_paths.bin_dir.clone()
+        self.inner.app_paths.bin_dir.clone()
     }
 
     /// Install whatever is missing.
     pub async fn ensure(&self, app: &AppHandle) -> AppResult<ToolStatus> {
+        let _guard = self.begin_install()?;
         let p = self.paths();
 
         if !p.ytdlp.is_file() {
-            installer::install_ytdlp(app, &self.app_paths.bin_dir).await?;
+            installer::install_ytdlp(app, &self.inner.app_paths.bin_dir).await?;
         }
         if !p.ffmpeg.is_file() || !p.ffprobe.is_file() {
-            installer::install_ffmpeg(app, &self.app_paths.bin_dir).await?;
+            installer::install_ffmpeg(app, &self.inner.app_paths.bin_dir).await?;
         }
 
         self.refresh(app);
@@ -140,7 +174,8 @@ impl ToolManager {
     }
 
     pub async fn update_ytdlp(&self, app: &AppHandle) -> AppResult<String> {
-        installer::install_ytdlp(app, &self.app_paths.bin_dir).await?;
+        let _guard = self.begin_install()?;
+        installer::install_ytdlp(app, &self.inner.app_paths.bin_dir).await?;
         self.refresh(app);
         Ok(self
             .ytdlp_version()

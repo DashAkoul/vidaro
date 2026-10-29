@@ -25,6 +25,22 @@ struct ParseState {
 const EMIT_INTERVAL: Duration = Duration::from_millis(200);
 
 pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
+    // A second resume (double click, or the scheduler racing the user) must not
+    // start a parallel yt-dlp process for the same item. A cancel immediately
+    // followed by a retry can overlap by a few milliseconds, so give the
+    // previous task a moment to release the item instead of dropping the run.
+    let mut claim = None;
+    for _ in 0..20 {
+        if let Some(guard) = inner.begin_run() {
+            claim = Some(guard);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    let Some(_run_guard) = claim else {
+        return;
+    };
+
     // 1. Honour a per-item schedule before competing for a slot.
     let (schedule_start, schedule_end) =
         inner.with_item(|item| (item.schedule_start.clone(), item.schedule_end.clone()));
@@ -242,6 +258,12 @@ async fn finish_ok(
     inner: &Arc<ItemInner>,
     state: &Arc<Mutex<ParseState>>,
 ) {
+    // The user may have removed the item while it was finishing; emitting now
+    // would make the UI add it back.
+    if !still_queued(queue, inner) {
+        return;
+    }
+
     let output_path = {
         let st = state.lock().await;
         st.output_path.clone()
@@ -268,6 +290,10 @@ async fn finish_ok(
 }
 
 fn fail(app: &AppHandle, queue: &Arc<Queue>, inner: &Arc<ItemInner>, message: &str) {
+    if !still_queued(queue, inner) {
+        return;
+    }
+
     let snapshot = inner.with_item(|item| {
         item.status = ItemStatus::Error;
         item.error = Some(message.to_string());
@@ -277,6 +303,13 @@ fn fail(app: &AppHandle, queue: &Arc<Queue>, inner: &Arc<ItemInner>, message: &s
     });
     events::emit(app, events::ITEM_UPDATED, &snapshot);
     control::persist(app, queue);
+}
+
+/// Is the item still part of the queue (i.e. not removed by the user)?
+fn still_queued(queue: &Queue, inner: &ItemInner) -> bool {
+    queue
+        .get(&inner.with_item(|item| item.id.clone()))
+        .is_some()
 }
 
 fn record_history(app: &AppHandle, item: &Item) {

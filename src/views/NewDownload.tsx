@@ -41,6 +41,11 @@ export default function NewDownload() {
   const [scheduleStart, setScheduleStart] = useState("");
   const [scheduleEnd, setScheduleEnd] = useState("");
 
+  // Follow the default folder if it is changed in Settings.
+  useEffect(() => {
+    setDir(settings.defaultDir);
+  }, [settings.defaultDir]);
+
   useEffect(() => {
     const subscription = onInfoProgress(({ message }) => {
       setProgressMessage(message === "done" ? "" : message);

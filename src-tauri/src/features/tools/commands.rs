@@ -5,9 +5,16 @@ use tauri::{AppHandle, State};
 use crate::core::error::{AppError, AppResult};
 use crate::features::tools::{ToolManager, ToolStatus};
 
+/// Report the state of yt-dlp / ffmpeg.
+///
+/// Async on purpose: the first call may have to run `yt-dlp --version`, which
+/// takes a second or two. Doing that on the command thread would stall the UI.
 #[tauri::command]
-pub fn binaries_status(tools: State<'_, ToolManager>) -> ToolStatus {
-    tools.status()
+pub async fn binaries_status(tools: State<'_, ToolManager>) -> AppResult<ToolStatus> {
+    let manager = tools.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.status())
+        .await
+        .map_err(|e| AppError::Tool(format!("status probe failed: {e}")))
 }
 
 #[tauri::command]

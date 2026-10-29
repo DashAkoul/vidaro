@@ -1,11 +1,11 @@
 //! Persistent user configuration.
 
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::error::{AppError, AppResult};
+use crate::core::error::AppResult;
 
 pub const SINGLE_VIDEOS_DIR: &str = "Single Videos";
 pub const DEFAULT_APP_FOLDER: &str = "YouTube Downloader";
@@ -128,6 +128,9 @@ pub fn parse_hhmm(value: &str) -> Option<u32> {
 pub struct ConfigStore {
     inner: RwLock<Settings>,
     path: PathBuf,
+    /// Serialises read-modify-write cycles so two concurrent `update` calls
+    /// cannot overwrite each other.
+    write_guard: Mutex<()>,
 }
 
 impl ConfigStore {
@@ -136,6 +139,7 @@ impl ConfigStore {
         Self {
             inner: RwLock::new(settings),
             path,
+            write_guard: Mutex::new(()),
         }
     }
 
@@ -153,6 +157,11 @@ impl ConfigStore {
     }
 
     pub fn update<F: FnOnce(&mut Settings)>(&self, mutate: F) -> AppResult<Settings> {
+        let _guard = self
+            .write_guard
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         let mut next = self.get();
         mutate(&mut next);
         self.replace(next)
@@ -188,13 +197,13 @@ fn read_settings(path: &Path) -> Settings {
 }
 
 /// Default download root: `<Downloads>/YouTube Downloader`.
-pub fn default_download_root(app: &tauri::AppHandle) -> String {
+///
+/// Returns `None` when the platform cannot resolve a downloads folder, so the
+/// caller can ask the user instead of inventing a path.
+pub fn default_download_root(app: &tauri::AppHandle) -> Option<String> {
     use tauri::Manager;
     app.path()
         .download_dir()
-        .map(|d| d.join(DEFAULT_APP_FOLDER).to_string_lossy().to_string())
-        .unwrap_or_else(|_| {
-            AppError::NotFound("downloads directory".into())
-                .to_string()
-        })
+        .ok()
+        .map(|dir| dir.join(DEFAULT_APP_FOLDER).to_string_lossy().to_string())
 }

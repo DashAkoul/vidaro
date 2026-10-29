@@ -1,6 +1,6 @@
 [package]
 name = "vidaro"
-version = "2.0.0"
+version = "2.0.1"
 description = "Vidaro - YouTube video, playlist & channel downloader"
 authors = ["DashAkoul"]
 edition = "2021"

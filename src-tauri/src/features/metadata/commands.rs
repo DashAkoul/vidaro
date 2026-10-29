@@ -57,21 +57,21 @@ pub async fn fetch_info(
     let _guard = FetchGuard;
     CANCELLED.store(false, Ordering::SeqCst);
 
-    let trimmed = url.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::Invalid("empty URL".into()));
-    }
+    // Also the security boundary: an option-looking string never reaches yt-dlp.
+    let Some(trimmed) = crate::features::metadata::url::normalize_url(&url) else {
+        return Err(AppError::Invalid(format!("not a valid URL: {url}")));
+    };
 
     let kind = match kind.as_deref() {
         Some("video") => UrlKind::Video,
         Some("playlist") => UrlKind::Playlist,
         Some("channel") => UrlKind::Channel,
-        _ => classify_url(trimmed),
+        _ => classify_url(&trimmed),
     };
 
     let target = match kind {
-        UrlKind::Channel => normalize_channel_url(trimmed),
-        _ => trimmed.to_string(),
+        UrlKind::Channel => normalize_channel_url(&trimmed),
+        _ => trimmed,
     };
 
     let Some(tools) = app.try_state::<ToolManager>() else {

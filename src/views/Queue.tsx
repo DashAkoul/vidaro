@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
 import { useApp, type QueueFilter } from "../lib/app-context";
 import {
@@ -125,13 +125,14 @@ export default function Queue() {
     });
   }
 
-  async function guard(action: () => Promise<unknown>) {
+  // Stable identity so memoised rows do not re-render on every progress event.
+  const guard = useCallback(async (action: () => Promise<unknown>) => {
     try {
       await action();
     } catch (error) {
       console.error(describeError(error));
     }
-  }
+  }, []);
 
   return (
     <div className="view">
@@ -210,7 +211,7 @@ export default function Queue() {
   );
 }
 
-function QueueRow({
+const QueueRow = memo(function QueueRow({
   item,
   onAction,
 }: {
@@ -392,4 +393,4 @@ function QueueRow({
       </div>
     </div>
   );
-}
+});

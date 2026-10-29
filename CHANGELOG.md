@@ -6,6 +6,36 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.2] — 2026-10-29
+
+Follow-up to the 2.0.1 review: the three items that were listed as known gaps.
+
+### Added
+
+- **Error boundary.** A render crash used to leave a blank window. The app now
+  shows a recovery screen with the error details, a reload button and a "try
+  again" that re-mounts the tree without losing the running downloads. The
+  screen is deliberately context-free (it reads `<html lang>`), so it still
+  renders when the thing that crashed was a provider.
+- **Code-signing pipeline.** `bundle.windows.signCommand` runs
+  `src-tauri/sign-windows.ps1`, which signs with `signtool` when
+  `WINDOWS_CERTIFICATE` is set and exits cleanly otherwise — verified to no-op
+  without a certificate, so local builds are unaffected. The macOS job exports
+  the Apple credentials only when `APPLE_CERTIFICATE` exists, because an empty
+  value makes the bundler attempt an invalid signature. README documents the
+  required secrets.
+
+### Changed
+
+- **Metadata parsing is typed.** `fetch_info` used to build a
+  `serde_json::Value` tree — one map per entry, holding every key yt-dlp emits —
+  before reducing it to a handful of fields. It now deserialises into
+  `RawInfo`/`RawEntry`, keeping only what is used, and reads stdout as raw bytes
+  instead of validating the whole document into a `String` first. Parsing runs
+  on a blocking thread. `null` entries (removed videos) are tolerated.
+
+---
+
 ## [2.0.1] — 2026-10-29
 
 A review pass over 2.0.0. One security fix and several concurrency fixes.

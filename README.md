@@ -80,6 +80,13 @@ src/
 └── styles/app.css
 ```
 
+### امضای کد
+
+نصب‌کنندهٔ بدون امضا در ویندوز پیام «Windows protected your PC» نشان می‌دهد و
+macOS اجازهٔ اجرا نمی‌دهد. خط تولید از امضای کد پشتیبانی می‌کند و اگر
+اعتبارنامه‌ای تنظیم نشده باشد، بدون امضا بیلد می‌شود. جزئیات (نام Secretها) در
+بخش انگلیسی «Code signing» آمده است.
+
 ---
 
 ## English
@@ -129,3 +136,26 @@ together, so adding a capability never means editing unrelated modules.
 - On networks where YouTube is filtered, configure a proxy in Settings.
 - Release builds use `lto = false` because thin-LTO breaks linking of the
   `ring` crate on MSVC.
+
+### Code signing
+
+Unsigned builds make Windows show "Windows protected your PC" and macOS refuse
+to open the app without a manual override. The pipeline supports both signers
+and stays unsigned when no credentials are configured.
+
+**Windows** — add two repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `WINDOWS_CERTIFICATE` | base64 of your `.pfx`, on a single line (`openssl base64 -A -in cert.pfx`) |
+| `WINDOWS_CERTIFICATE_PASSWORD` | the `.pfx` password |
+
+`src-tauri/sign-windows.ps1` is wired through `bundle.windows.signCommand` and
+exits without signing when the secrets are absent, so local builds are
+unaffected.
+
+**macOS** — add `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+`APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID`. The
+workflow exports them only when `APPLE_CERTIFICATE` exists (an empty value would
+make the bundler attempt an invalid signature); Tauri then signs and notarizes
+the `.app` and `.dmg`.

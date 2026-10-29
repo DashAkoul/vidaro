@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import ClipboardToast from "./components/ClipboardToast";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Sidebar from "./components/Sidebar";
 import StatusBar from "./components/StatusBar";
 import ToolsOverlay from "./components/ToolsOverlay";
@@ -14,9 +15,11 @@ import Settings from "./views/Settings";
 
 export default function App() {
   return (
-    <AppProvider>
-      <Shell />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <Shell />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 

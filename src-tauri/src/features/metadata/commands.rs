@@ -4,15 +4,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use serde_json::Value;
 use tauri::{AppHandle, Manager as _};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::Mutex;
 
 use crate::core::config::ConfigStore;
 use crate::core::error::{AppError, AppResult};
 use crate::core::events;
-use crate::features::metadata::model::{InfoProgress, InfoResult, VideoEntry};
+use crate::features::metadata::model::{InfoProgress, InfoResult, RawInfo, RawThumbnail, VideoEntry};
 use crate::features::metadata::url::{classify_url, normalize_channel_url, UrlKind};
 use crate::features::tools::ToolManager;
 
@@ -126,15 +125,14 @@ pub async fn fetch_info(
     let stderr = child.stderr.take();
     *child_slot().lock().await = Some(child);
 
-    // stdout carries the JSON document.
+    // stdout carries the JSON document. Read it as raw bytes: decoding to a
+    // `String` first would mean validating and buffering the whole document a
+    // second time before the parser sees it.
     let json_task = stdout.map(|out| {
         tauri::async_runtime::spawn(async move {
-            let mut buffer = String::new();
-            let mut lines = BufReader::new(out).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                buffer.push_str(&line);
-                buffer.push('\n');
-            }
+            let mut buffer: Vec<u8> = Vec::new();
+            let mut reader = BufReader::new(out);
+            let _ = reader.read_to_end(&mut buffer).await;
             buffer
         })
     });
@@ -164,9 +162,9 @@ pub async fn fetch_info(
         })
     });
 
-    let json_text = match json_task {
+    let json_bytes = match json_task {
         Some(task) => task.await.unwrap_or_default(),
-        None => String::new(),
+        None => Vec::new(),
     };
     let last_error = match err_task {
         Some(task) => task.await.unwrap_or_default(),
@@ -185,23 +183,26 @@ pub async fn fetch_info(
         return Err(AppError::Cancelled);
     }
 
-    if json_text.trim().is_empty() {
-        let detail = if last_error.is_empty() {
-            "could not read video information".to_string()
-        } else {
+    if json_bytes.iter().all(|b| b.is_ascii_whitespace()) {
+        let detail = if !last_error.is_empty() {
             last_error
+        } else if !success {
+            "yt-dlp exited with an error".to_string()
+        } else {
+            "could not read video information".to_string()
         };
         return Err(AppError::Invalid(detail));
     }
 
-    let json: Value = serde_json::from_str(json_text.trim())
-        .map_err(|_| AppError::Invalid("could not parse metadata".into()))?;
+    // Parsing a large channel listing is CPU-bound, so keep it off the runtime.
+    let raw: RawInfo = tauri::async_runtime::spawn_blocking(move || {
+        serde_json::from_slice::<RawInfo>(&json_bytes)
+    })
+    .await
+    .map_err(|e| AppError::Tool(format!("parse task failed: {e}")))?
+    .map_err(|e| AppError::Invalid(format!("could not parse metadata: {e}")))?;
 
-    if !success && json.is_null() {
-        return Err(AppError::Invalid("yt-dlp failed".into()));
-    }
-
-    let result = parse_result(&json, kind)?;
+    let result = parse_result(&raw, kind)?;
     emit_progress(&app, "done");
     Ok(result)
 }
@@ -215,31 +216,35 @@ pub async fn cancel_fetch() {
     }
 }
 
-fn parse_result(json: &Value, kind: UrlKind) -> AppResult<InfoResult> {
+fn parse_result(raw: &RawInfo, kind: UrlKind) -> AppResult<InfoResult> {
     match kind {
-        UrlKind::Video => parse_video(json),
-        UrlKind::Playlist | UrlKind::Channel => parse_collection(json, kind),
+        UrlKind::Video => parse_video(raw),
+        UrlKind::Playlist | UrlKind::Channel => parse_collection(raw, kind),
     }
 }
 
-fn parse_video(json: &Value) -> AppResult<InfoResult> {
-    let id = json["id"].as_str().unwrap_or_default().to_string();
+/// Last thumbnail in the list is the highest resolution one.
+fn best_thumbnail(list: Option<&[RawThumbnail]>) -> Option<String> {
+    list.and_then(|items| items.last())
+        .and_then(|thumb| thumb.url.clone())
+}
+
+fn parse_video(raw: &RawInfo) -> AppResult<InfoResult> {
+    let id = raw.id.clone().unwrap_or_default();
     if id.is_empty() {
         return Err(AppError::Invalid("no video found at this URL".into()));
     }
 
     let mut heights: Vec<u32> = Vec::new();
-    if let Some(formats) = json["formats"].as_array() {
-        for format in formats {
-            let has_video = format["vcodec"]
-                .as_str()
-                .map(|codec| codec != "none")
-                .unwrap_or(false);
-            if let Some(height) = format["height"].as_u64() {
-                let height = height as u32;
-                if has_video && height >= 144 && !heights.contains(&height) {
-                    heights.push(height);
-                }
+    for format in raw.formats.iter().flatten() {
+        let has_video = format
+            .vcodec
+            .as_deref()
+            .map(|codec| codec != "none")
+            .unwrap_or(false);
+        if let Some(height) = format.height {
+            if has_video && height >= 144 && !heights.contains(&height) {
+                heights.push(height);
             }
         }
     }
@@ -247,50 +252,44 @@ fn parse_video(json: &Value) -> AppResult<InfoResult> {
 
     Ok(InfoResult::Video {
         id,
-        title: json["title"].as_str().unwrap_or("Untitled").to_string(),
-        duration: json["duration"].as_f64(),
-        thumbnail: json["thumbnail"].as_str().map(str::to_string),
-        uploader: json["uploader"]
-            .as_str()
-            .or_else(|| json["channel"].as_str())
-            .map(str::to_string),
+        title: raw.title.clone().unwrap_or_else(|| "Untitled".to_string()),
+        duration: raw.duration,
+        thumbnail: raw.thumbnail.clone(),
+        uploader: raw.uploader.clone().or_else(|| raw.channel.clone()),
         heights,
     })
 }
 
-fn parse_collection(json: &Value, kind: UrlKind) -> AppResult<InfoResult> {
-    let raw_entries = json["entries"].as_array().cloned().unwrap_or_default();
-    let truncated = raw_entries.len() > MAX_ENTRIES;
+fn parse_collection(raw: &RawInfo, kind: UrlKind) -> AppResult<InfoResult> {
+    let listed = raw.entries.as_deref().unwrap_or_default();
+    let truncated = listed.len() > MAX_ENTRIES;
 
-    let mut entries: Vec<VideoEntry> = raw_entries
-        .into_iter()
+    let mut entries: Vec<VideoEntry> = listed
+        .iter()
         .take(MAX_ENTRIES)
+        // yt-dlp emits `null` for videos that became unavailable.
+        .flatten()
         .filter_map(|entry| {
-            let id = entry["id"].as_str().unwrap_or_default().to_string();
+            let id = entry.id.clone().unwrap_or_default();
             if id.is_empty() {
                 return None;
             }
-            let url = entry["url"]
-                .as_str()
-                .map(|url| {
-                    if url.starts_with("http") {
-                        url.to_string()
-                    } else {
-                        format!("https://www.youtube.com/watch?v={url}")
-                    }
-                })
-                .unwrap_or_else(|| format!("https://www.youtube.com/watch?v={id}"));
+
+            let url = match entry.url.as_deref() {
+                Some(url) if url.starts_with("http") => url.to_string(),
+                Some(url) => format!("https://www.youtube.com/watch?v={url}"),
+                None => format!("https://www.youtube.com/watch?v={id}"),
+            };
 
             Some(VideoEntry {
                 index: 0,
                 id,
-                title: entry["title"].as_str().unwrap_or("[unavailable]").to_string(),
-                duration: entry["duration"].as_f64(),
-                thumbnail: entry["thumbnails"]
-                    .as_array()
-                    .and_then(|list| list.last())
-                    .and_then(|thumb| thumb["url"].as_str())
-                    .map(str::to_string),
+                title: entry
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| "[unavailable]".to_string()),
+                duration: entry.duration,
+                thumbnail: best_thumbnail(entry.thumbnails.as_deref()),
                 url,
             })
         })
@@ -310,23 +309,89 @@ fn parse_collection(json: &Value, kind: UrlKind) -> AppResult<InfoResult> {
 
     Ok(InfoResult::Collection {
         coll_type: kind.as_str().to_string(),
-        id: json["id"].as_str().unwrap_or_default().to_string(),
-        title: json["title"]
-            .as_str()
-            .or_else(|| json["uploader"].as_str())
-            .or_else(|| json["channel"].as_str())
-            .unwrap_or("Collection")
-            .to_string(),
-        uploader: json["uploader"]
-            .as_str()
-            .or_else(|| json["channel"].as_str())
-            .map(str::to_string),
-        thumbnail: json["thumbnails"]
-            .as_array()
-            .and_then(|list| list.last())
-            .and_then(|thumb| thumb["url"].as_str())
-            .map(str::to_string),
+        id: raw.id.clone().unwrap_or_default(),
+        title: raw
+            .title
+            .clone()
+            .or_else(|| raw.uploader.clone())
+            .or_else(|| raw.channel.clone())
+            .unwrap_or_else(|| "Collection".to_string()),
+        uploader: raw.uploader.clone().or_else(|| raw.channel.clone()),
+        thumbnail: best_thumbnail(raw.thumbnails.as_deref()),
         entries,
         truncated,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VIDEO_JSON: &str = r#"{
+        "id": "abc123",
+        "title": "A video",
+        "duration": 95,
+        "thumbnail": "https://i.ytimg.com/vi/abc123/maxresdefault.jpg",
+        "uploader": "Someone",
+        "formats": [
+            {"height": 720, "vcodec": "avc1"},
+            {"height": 1080, "vcodec": "avc1"},
+            {"height": 1080, "vcodec": "none"},
+            {"height": 144, "vcodec": "avc1"}
+        ]
+    }"#;
+
+    const CHANNEL_JSON: &str = r#"{
+        "id": "UC123",
+        "title": "A channel",
+        "uploader": "Someone",
+        "thumbnails": [{"url": "https://i.ytimg.com/a.jpg"}, {"url": "https://i.ytimg.com/b.jpg"}],
+        "entries": [
+            {"id": "newest", "title": "Newest", "duration": 10},
+            {"id": "older", "title": "Older", "duration": 20},
+            null,
+            {"id": "oldest", "title": "Oldest"}
+        ]
+    }"#;
+
+    fn raw(json: &str) -> RawInfo {
+        serde_json::from_str(json).expect("sample json must parse")
+    }
+
+    #[test]
+    fn video_heights_are_unique_and_sorted() {
+        let result = parse_video(&raw(VIDEO_JSON)).unwrap();
+        match result {
+            InfoResult::Video { heights, title, .. } => {
+                assert_eq!(heights, vec![1080, 720, 144]);
+                assert_eq!(title, "A video");
+            }
+            _ => panic!("expected a video"),
+        }
+    }
+
+    #[test]
+    fn channel_is_reversed_and_numbered() {
+        let result = parse_collection(&raw(CHANNEL_JSON), UrlKind::Channel).unwrap();
+        match result {
+            InfoResult::Collection { entries, truncated, thumbnail, .. } => {
+                assert!(!truncated);
+                let ids: Vec<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+                // Oldest first, with the null entry dropped.
+                assert_eq!(ids, vec!["oldest", "older", "newest"]);
+                assert_eq!(entries[0].index, 1);
+                assert_eq!(entries[2].index, 3);
+                // Missing duration is tolerated.
+                assert_eq!(entries[0].duration, None);
+                assert_eq!(thumbnail.as_deref(), Some("https://i.ytimg.com/b.jpg"));
+            }
+            _ => panic!("expected a collection"),
+        }
+    }
+
+    #[test]
+    fn empty_collection_is_an_error() {
+        let json = r#"{"id": "x", "entries": []}"#;
+        assert!(parse_collection(&raw(json), UrlKind::Playlist).is_err());
+    }
 }

@@ -48,9 +48,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # The signing script exits cleanly when no certificate is configured, so
+      # local and unsigned CI builds are unaffected.
       - name: Build Tauri App (Windows)
         run: npm run tauri build
         env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
@@ -96,6 +100,23 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      # Tauri signs and notarizes automatically when these are present. The
+      # variables are exported only when a certificate secret exists, because an
+      # empty APPLE_CERTIFICATE makes the bundler attempt an invalid signature.
+      - name: Configure macOS signing
+        if: env.APPLE_CERTIFICATE != ''
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          {
+            echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE"
+            echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}"
+            echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
 
       - name: Build Tauri App (macOS Universal)
         run: npm run tauri build -- --target universal-apple-darwin

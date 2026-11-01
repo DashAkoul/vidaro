@@ -6,6 +6,34 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.3] — 2026-11-01
+
+Fixes the "could not parse metadata: invalid type: null" regression introduced
+in 2.0.2, and makes YouTube's intermittent failures survivable.
+
+### Fixed
+
+- **A failed fetch reported a serde type error instead of the real reason.**
+  2.0.2 started deserialising into `RawInfo`; yt-dlp prints a bare `null` when it
+  cannot extract anything, and a struct rejects `null`. So an unavailable video
+  surfaced as `invalid type: null, expected struct RawInfo at line 1 column 4`
+  and hid the actual cause. The document is now parsed as `Option<RawInfo>`, and
+  when it is `null` the message from yt-dlp is reported instead.
+
+### Added
+
+- **Automatic retry.** YouTube answers with a bot check or a degraded player
+  response intermittently — the same request often succeeds seconds later. A
+  fetch is now retried up to three times, but only for failures that are worth
+  retrying (`Sign in to confirm`, `Requested format is not available`,
+  `Unable to extract`, …). A permanently unavailable video fails immediately.
+- **Readable error messages.** yt-dlp's `ERROR: [youtube] <id>: …` prefix is
+  stripped, and the two failures users actually hit are translated into
+  actionable text: a bot check is explained as a network-level block with a
+  suggestion to switch VPN/proxy server, and an unavailable video says so.
+
+---
+
 ## [2.0.2] — 2026-10-29
 
 Follow-up to the 2.0.1 review: the three items that were listed as known gaps.

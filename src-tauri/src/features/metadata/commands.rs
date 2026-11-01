@@ -54,14 +54,84 @@ pub async fn fetch_info(
         return Err(AppError::Invalid("another fetch is already running".into()));
     }
     let _guard = FetchGuard;
-    CANCELLED.store(false, Ordering::SeqCst);
+
+    // YouTube intermittently answers with a bot check or a degraded player
+    // response. Those clear up on their own, so retry a couple of times before
+    // reporting a failure.
+    let mut attempt = 0u8;
+    loop {
+        attempt += 1;
+        CANCELLED.store(false, Ordering::SeqCst);
+
+        let error = match fetch_once(&app, &url, kind.as_deref()).await {
+            Ok(result) => return Ok(result),
+            Err(AppError::Cancelled) => return Err(AppError::Cancelled),
+            Err(error) => error,
+        };
+
+        if attempt >= 3 || !is_transient(&error.to_string()) {
+            return Err(error);
+        }
+        emit_progress(&app, format!("retrying after: {error}"));
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+    }
+}
+
+/// Errors that are worth retrying: YouTube throttles and bot-checks
+/// intermittently, so the same request usually succeeds a moment later.
+fn is_transient(message: &str) -> bool {
+    const MARKERS: [&str; 6] = [
+        "Sign in to confirm",
+        "not a bot",
+        "Requested format is not available",
+        "page needs to be reloaded",
+        "No video formats found",
+        "Unable to extract",
+    ];
+    MARKERS.iter().any(|marker| message.contains(marker))
+}
+
+/// Strip yt-dlp's decorations so the UI shows a readable sentence.
+fn clean_error(raw: &str) -> String {
+    let mut text = raw.trim();
+    if let Some(rest) = text.strip_prefix("ERROR: ") {
+        text = rest;
+    }
+    if text.starts_with('[') {
+        if let Some(bracket) = text.find("] ") {
+            let rest = &text[bracket + 2..];
+            text = match rest.find(": ") {
+                Some(colon) if !rest[..colon].contains(' ') => &rest[colon + 2..],
+                _ => rest,
+            };
+        }
+    }
+    text.trim().to_string()
+}
+
+/// Turn the two failure modes users actually hit into actionable sentences.
+fn friendly_error(raw: &str) -> String {
+    let message = clean_error(raw);
+
+    if message.contains("not a bot") || message.contains("Sign in to confirm") {
+        return "YouTube asked to confirm you are not a bot. That is a block on the                 network, not on the video: switch to another VPN or proxy server and try again."
+            .to_string();
+    }
+    if message.contains("Video unavailable") || message.contains("This video is unavailable") {
+        return "This video is unavailable — it may be deleted, private, or blocked in your region."
+            .to_string();
+    }
+    message
+}
+
+async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult<InfoResult> {
 
     // Also the security boundary: an option-looking string never reaches yt-dlp.
-    let Some(trimmed) = crate::features::metadata::url::normalize_url(&url) else {
+    let Some(trimmed) = crate::features::metadata::url::normalize_url(url) else {
         return Err(AppError::Invalid(format!("not a valid URL: {url}")));
     };
 
-    let kind = match kind.as_deref() {
+    let kind = match kind {
         Some("video") => UrlKind::Video,
         Some("playlist") => UrlKind::Playlist,
         Some("channel") => UrlKind::Channel,
@@ -185,7 +255,7 @@ pub async fn fetch_info(
 
     if json_bytes.iter().all(|b| b.is_ascii_whitespace()) {
         let detail = if !last_error.is_empty() {
-            last_error
+            friendly_error(&last_error)
         } else if !success {
             "yt-dlp exited with an error".to_string()
         } else {
@@ -195,12 +265,35 @@ pub async fn fetch_info(
     }
 
     // Parsing a large channel listing is CPU-bound, so keep it off the runtime.
-    let raw: RawInfo = tauri::async_runtime::spawn_blocking(move || {
-        serde_json::from_slice::<RawInfo>(&json_bytes)
+    // `Option<RawInfo>` accepts the bare `null` yt-dlp prints when it could not
+    // extract anything, instead of failing with a serde type error.
+    let parsed = tauri::async_runtime::spawn_blocking(move || {
+        serde_json::from_slice::<Option<RawInfo>>(&json_bytes)
     })
     .await
-    .map_err(|e| AppError::Tool(format!("parse task failed: {e}")))?
-    .map_err(|e| AppError::Invalid(format!("could not parse metadata: {e}")))?;
+    .map_err(|e| AppError::Tool(format!("parse task failed: {e}")))?;
+
+    let raw = match parsed {
+        Ok(Some(raw)) => raw,
+        // No document: report what yt-dlp actually said.
+        Ok(None) => {
+            return Err(AppError::Invalid(if !last_error.is_empty() {
+                friendly_error(&last_error)
+            } else if !success {
+                "yt-dlp could not read this URL".to_string()
+            } else {
+                "yt-dlp returned no video information".to_string()
+            }));
+        }
+        Err(e) => {
+            let detail = if last_error.is_empty() {
+                e.to_string()
+            } else {
+                format!("{} ({})", e, friendly_error(&last_error))
+            };
+            return Err(AppError::Invalid(format!("could not parse metadata: {detail}")));
+        }
+    };
 
     let result = parse_result(&raw, kind)?;
     emit_progress(&app, "done");
@@ -387,6 +480,38 @@ mod tests {
             }
             _ => panic!("expected a collection"),
         }
+    }
+
+    #[test]
+    fn bare_null_is_accepted() {
+        // yt-dlp prints `null` when it could not extract anything.
+        let parsed: Option<RawInfo> = serde_json::from_slice(b"null").unwrap();
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn error_messages_are_cleaned() {
+        assert_eq!(
+            clean_error("ERROR: [youtube] cXeLjuzQglg: This video is unavailable"),
+            "This video is unavailable"
+        );
+        assert_eq!(clean_error("ERROR: something broke"), "something broke");
+        assert_eq!(clean_error("plain message"), "plain message");
+    }
+
+    #[test]
+    fn unavailable_video_is_not_retried() {
+        assert!(!is_transient("This video is unavailable"));
+        assert!(is_transient("Sign in to confirm you are not a bot"));
+        assert!(is_transient("Requested format is not available"));
+    }
+
+    #[test]
+    fn bot_check_becomes_actionable() {
+        let message = friendly_error(
+            "ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies",
+        );
+        assert!(message.contains("switch to another VPN"), "{message}");
     }
 
     #[test]

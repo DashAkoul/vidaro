@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -35,6 +35,9 @@ impl Drop for RunGuard {
 pub struct ItemInner {
     item: Mutex<Item>,
     child: tokio::sync::Mutex<Option<tokio::process::Child>>,
+    /// PID of the running yt-dlp process, kept outside the child mutex so a
+    /// cancel can kill the process tree even while `wait_child` is awaiting.
+    child_pid: AtomicU32,
     pub control: Mutex<Control>,
     running: AtomicBool,
 }
@@ -44,6 +47,7 @@ impl ItemInner {
         Arc::new(Self {
             item: Mutex::new(item),
             child: tokio::sync::Mutex::new(None),
+            child_pid: AtomicU32::new(0),
             control: Mutex::new(Control {
                 paused: false,
                 cancelled: false,
@@ -92,10 +96,49 @@ impl ItemInner {
     }
 
     pub async fn set_child(&self, child: Option<tokio::process::Child>) {
+        let pid = child.as_ref().and_then(|c| c.id()).unwrap_or(0);
+        self.child_pid.store(pid, Ordering::SeqCst);
         *self.child.lock().await = child;
     }
 
+    /// Stop the download and everything it spawned.
+    ///
+    /// `yt-dlp.exe` is a PyInstaller bundle: the process we spawn is a
+    /// bootloader that starts the real Python process, and ffmpeg is a third
+    /// one. Killing only the direct child leaves the actual download running,
+    /// so the whole tree has to go.
     pub async fn kill_child(&self) {
+        let pid = self.child_pid.swap(0, Ordering::SeqCst);
+
+        #[cfg(windows)]
+        if pid != 0 {
+            // `/T` includes children, `/F` forces termination. Absolute path so
+            // a broken PATH cannot silently disable cancellation.
+            let taskkill = std::env::var("SystemRoot")
+                .map(|root| format!(r"{root}\System32\taskkill.exe"))
+                .unwrap_or_else(|_| "taskkill".to_string());
+            let _ = crate::core::process::async_command(taskkill)
+                .args(["/T", "/F", "/PID", &pid.to_string()])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await;
+        }
+
+        #[cfg(unix)]
+        if pid != 0 {
+            // The child was started in its own process group (see runner), so
+            // a negative pid signals the whole group.
+            let _ = crate::core::process::async_command("kill")
+                .args(["-9", &format!("-{pid}")])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await;
+        }
+
         let mut guard = self.child.lock().await;
         if let Some(child) = guard.as_mut() {
             let _ = child.kill().await;
@@ -104,12 +147,20 @@ impl ItemInner {
     }
 
     /// Wait for the child to exit, consuming the handle. Returns true on success.
+    ///
+    /// The mutex is released before awaiting the process, so a cancel arriving
+    /// mid-wait can still take the handle and kill it.
     pub async fn wait_child(&self) -> bool {
-        let mut guard = self.child.lock().await;
-        let Some(mut child) = guard.take() else {
+        let child = {
+            let mut guard = self.child.lock().await;
+            guard.take()
+        };
+        let Some(mut child) = child else {
             return false;
         };
-        matches!(child.wait().await, Ok(status) if status.success())
+        let success = matches!(child.wait().await, Ok(status) if status.success());
+        self.child_pid.store(0, Ordering::SeqCst);
+        success
     }
 }
 

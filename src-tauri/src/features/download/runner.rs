@@ -95,6 +95,11 @@ pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
 
+    // Own process group on Unix so a cancel can signal the whole tree with
+    // `kill -9 -<pid>`; Windows uses `taskkill /T` instead.
+    #[cfg(unix)]
+    command.process_group(0);
+
     // yt-dlp passes its environment on to ffmpeg, so this covers both.
     if let Some(proxy) = settings.proxy_url() {
         for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
@@ -120,6 +125,14 @@ pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     inner.set_child(Some(child)).await;
+
+    // A cancel or pause can land in the gap between spawning the process and
+    // registering it. `kill_child` would have found nothing to kill, so honour
+    // the request now that the handle exists.
+    if inner.is_cancelled() || inner.is_paused() {
+        inner.kill_child().await;
+        return;
+    }
 
     let mut readers = Vec::new();
     for stream in [stdout.map(Stream::Out), stderr.map(Stream::Err)]

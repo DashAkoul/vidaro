@@ -6,6 +6,35 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.6] — 2026-11-04
+
+Cancelling a running download now actually stops it, and the browser context
+menu is gone.
+
+### Fixed
+
+- **Cancel did not stop a running download.** `yt-dlp.exe` is a PyInstaller
+  bundle: the process we spawn is a bootloader that starts the real Python
+  process (and ffmpeg is a third). `Child::kill()` terminated only the
+  bootloader, so the download kept running in the child while the UI showed
+  "cancelled". Cancel and pause now kill the whole process tree — `taskkill /T`
+  on Windows, the process group on Unix — verified against a live download
+  where both `yt-dlp.exe` processes died and the file stopped growing.
+- **A cancel could arrive before the process was registered.** The gap between
+  `spawn()` and `set_child()` meant the kill found nothing to terminate. The
+  runner now re-checks the cancel flag right after registering the handle.
+- **`wait_child` held the child mutex across `await`.** A cancel arriving
+  while the process was being awaited blocked on that mutex until the process
+  exited on its own. The handle is now taken and the lock released before
+  waiting, and the pid is tracked separately so the tree can still be killed.
+
+### Changed
+
+- **Right-click is disabled.** The webview no longer shows the browser context
+  menu (Back / Reload / Save as / Inspect). Ctrl+V still pastes.
+
+---
+
 ## [2.0.5] — 2026-11-04
 
 Fixes the window showing "localhost refused to connect" instead of the app.

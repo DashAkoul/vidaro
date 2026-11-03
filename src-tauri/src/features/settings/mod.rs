@@ -1,5 +1,7 @@
 //! Settings commands, data import/export, and app metadata.
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
@@ -37,7 +39,7 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 }
 
 #[tauri::command]
-pub fn get_settings(app: AppHandle, config: State<'_, ConfigStore>) -> Settings {
+pub fn get_settings(app: AppHandle, config: State<'_, Arc<ConfigStore>>) -> Settings {
     let mut settings = config.get();
     if settings.default_dir.trim().is_empty() {
         if let Some(dir) = default_download_root(&app) {
@@ -50,7 +52,7 @@ pub fn get_settings(app: AppHandle, config: State<'_, ConfigStore>) -> Settings 
 #[tauri::command]
 pub fn set_settings(
     app: AppHandle,
-    config: State<'_, ConfigStore>,
+    config: State<'_, Arc<ConfigStore>>,
     settings: Settings,
 ) -> AppResult<Settings> {
     let previous = config.get();
@@ -67,7 +69,7 @@ pub fn set_settings(
 #[tauri::command]
 pub fn set_autostart(
     app: AppHandle,
-    config: State<'_, ConfigStore>,
+    config: State<'_, Arc<ConfigStore>>,
     enabled: bool,
 ) -> AppResult<Settings> {
     autostart::set_enabled(enabled)?;
@@ -89,7 +91,7 @@ struct ExportBundle {
 #[tauri::command]
 pub fn export_data(
     app: AppHandle,
-    config: State<'_, ConfigStore>,
+    config: State<'_, Arc<ConfigStore>>,
     mgr: State<'_, Manager>,
     path: String,
 ) -> AppResult<()> {
@@ -124,7 +126,7 @@ struct ImportBundle {
 #[tauri::command]
 pub async fn import_data(
     app: AppHandle,
-    config: State<'_, ConfigStore>,
+    config: State<'_, Arc<ConfigStore>>,
     mgr: State<'_, Manager>,
     path: String,
 ) -> AppResult<()> {

@@ -46,6 +46,9 @@ pub fn run() {
             let settings = config.get();
 
             app.manage(paths.clone());
+            // Registered as `Arc<ConfigStore>`: the same handle is shared with
+            // the plugin context, and every consumer must ask for exactly this
+            // type or Tauri will report "state not managed".
             app.manage(config.clone());
 
             // ---- queue ---------------------------------------------------
@@ -82,9 +85,7 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                let close_to_tray = window
-                    .app_handle()
-                    .try_state::<ConfigStore>()
+                let close_to_tray = crate::core::state::config_opt(window.app_handle())
                     .map(|config| config.get().close_to_tray)
                     .unwrap_or(true);
 

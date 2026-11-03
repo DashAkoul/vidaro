@@ -6,7 +6,7 @@ use std::time::Duration;
 use chrono::Timelike;
 use tauri::{AppHandle, Manager as _};
 
-use crate::core::config::{parse_hhmm, ConfigStore};
+use crate::core::config::parse_hhmm;
 use crate::core::plugin::AppContext;
 use crate::features::download::control;
 use crate::features::download::model::{ItemStatus, PausedBy};
@@ -65,7 +65,7 @@ pub fn spawn_global(app: AppHandle, queue: Arc<Queue>) {
 }
 
 async fn tick(app: &AppHandle, queue: &Arc<Queue>) {
-    let Some(config) = app.try_state::<ConfigStore>() else {
+    let Some(config) = crate::core::state::config_opt(app) else {
         return;
     };
     let settings = config.get();

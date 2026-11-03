@@ -6,6 +6,30 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.4] — 2026-11-03
+
+Fixes "state not managed for field `config`", which stopped every download from
+being added to the queue.
+
+### Fixed
+
+- **Downloads could not be added to the queue.** The settings store was
+  registered with Tauri as `Arc<ConfigStore>`, but the `enqueue_batch` command
+  asked for `ConfigStore`. Tauri keys managed state by its exact type, so the
+  lookup failed and the command returned
+  `state not managed for field 'config'`. The URL was fetched and displayed
+  correctly, but adding the video to the queue always failed. Every managed
+  type now matches every consumer, and the lookup goes through a single
+  `core::state` helper.
+- **A settings mismatch could hide silently.** `try_state` falls back to
+  default settings when the type does not match, so the same mistake could
+  have reappeared as "settings mysteriously reset" instead of an error.
+  Settings are now read through one helper that fails loudly, and a unit test
+  ties the registered type to the lookup type so a future drift fails the
+  build instead of the download.
+
+---
+
 ## [2.0.3] — 2026-11-01
 
 Fixes the "could not parse metadata: invalid type: null" regression introduced

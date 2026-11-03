@@ -7,4 +7,5 @@ pub mod filename;
 pub mod paths;
 pub mod plugin;
 pub mod process;
+pub mod state;
 

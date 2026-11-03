@@ -7,7 +7,6 @@ use tauri::{AppHandle, Manager as _};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::Mutex;
 
-use crate::core::config::ConfigStore;
 use crate::core::events;
 use crate::features::download::model::{Item, ItemStatus, Stage};
 use crate::features::download::queue::{ItemInner, Queue};
@@ -67,10 +66,7 @@ pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
     control::set_status(&app, &queue, &inner, ItemStatus::Active, None);
 
     // 3. Resolve tools and build the command.
-    let settings = app
-        .try_state::<ConfigStore>()
-        .map(|c| c.get())
-        .unwrap_or_default();
+    let settings = crate::core::state::config(&app).get();
 
     let Some(tools) = app.try_state::<ToolManager>() else {
         fail(&app, &queue, &inner, "internal error: tools not initialised");

@@ -8,7 +8,6 @@ use tauri::{AppHandle, Manager as _};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::Mutex;
 
-use crate::core::config::ConfigStore;
 use crate::core::error::{AppError, AppResult};
 use crate::core::events;
 use crate::features::metadata::model::{InfoProgress, InfoResult, RawInfo, RawThumbnail, VideoEntry};
@@ -170,10 +169,7 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
     }
     args.push("--dump-single-json".into());
 
-    if let Some(proxy) = app
-        .try_state::<ConfigStore>()
-        .and_then(|c| c.get().proxy_url())
-    {
+    if let Some(proxy) = crate::core::state::config(&app).get().proxy_url() {
         args.push("--proxy".into());
         args.push(proxy);
     }

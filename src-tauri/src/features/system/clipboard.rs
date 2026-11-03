@@ -7,9 +7,8 @@
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager as _};
+use tauri::AppHandle;
 
-use crate::core::config::ConfigStore;
 use crate::core::events;
 use crate::features::metadata::url::is_youtube_url;
 use crate::features::system::window;
@@ -30,7 +29,7 @@ pub fn spawn(app: AppHandle) {
         loop {
             std::thread::sleep(POLL_INTERVAL);
 
-            let (watching, notify) = match app.try_state::<ConfigStore>() {
+            let (watching, notify) = match crate::core::state::config_opt(&app) {
                 Some(config) => {
                     let settings = config.get();
                     (settings.clipboard_watch, settings.notify_on_clipboard)
@@ -83,10 +82,7 @@ pub fn spawn(app: AppHandle) {
 fn show_notification(app: &AppHandle, url: &str) {
     use tauri_plugin_notification::NotificationExt;
 
-    let language = app
-        .try_state::<ConfigStore>()
-        .map(|c| c.get().language)
-        .unwrap_or_else(|| "en".to_string());
+    let language = crate::core::state::config(app).get().language;
 
     let (title, body) = if language == "fa" {
         (

@@ -1,10 +1,10 @@
 //! System tray icon and its menu.
 
+
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager as _};
 
-use crate::core::config::ConfigStore;
 use crate::features::download::control;
 use crate::features::download::model::{ItemStatus, PausedBy};
 use crate::features::download::queue::Manager;
@@ -37,10 +37,7 @@ fn labels(language: &str) -> Labels {
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let language = app
-        .try_state::<ConfigStore>()
-        .map(|c| c.get().language)
-        .unwrap_or_else(|| "en".to_string());
+    let language = crate::core::state::config(app).get().language;
     let text = labels(&language);
 
     let show = MenuItem::with_id(app, "show", text.show, true, None::<&str>)?;

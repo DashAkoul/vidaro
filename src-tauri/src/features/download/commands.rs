@@ -1,6 +1,7 @@
 //! Tauri commands for the download queue.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use tauri::{AppHandle, State};
 
@@ -19,7 +20,7 @@ use crate::features::metadata::url::normalize_url;
 pub async fn enqueue_batch(
     app: AppHandle,
     mgr: State<'_, Manager>,
-    config: State<'_, ConfigStore>,
+    config: State<'_, Arc<ConfigStore>>,
     payload: EnqueuePayload,
 ) -> AppResult<Vec<Item>> {
     let settings = config.get();

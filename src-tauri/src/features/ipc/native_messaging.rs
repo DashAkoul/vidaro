@@ -8,7 +8,6 @@ use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager as _};
 
-use crate::core::config::ConfigStore;
 use crate::features::download::model::Item;
 use crate::features::download::queue::Manager;
 use crate::features::history::{self, HistoryEntry};
@@ -89,7 +88,7 @@ fn handle(app: &AppHandle, message: ExtensionMessage) -> NativeResponse {
             None => error("queue not available"),
         },
 
-        ExtensionMessage::GetSettings => match app.try_state::<ConfigStore>() {
+        ExtensionMessage::GetSettings => match crate::core::state::config_opt(app) {
             Some(config) => NativeResponse::SettingsUpdate {
                 settings: serde_json::to_value(config.get()).unwrap_or_default(),
             },
@@ -97,7 +96,7 @@ fn handle(app: &AppHandle, message: ExtensionMessage) -> NativeResponse {
         },
 
         ExtensionMessage::UpdateSettings { settings } => {
-            let Some(config) = app.try_state::<ConfigStore>() else {
+            let Some(config) = crate::core::state::config_opt(app) else {
                 return error("settings not available");
             };
             match serde_json::from_value::<crate::core::config::Settings>(settings) {

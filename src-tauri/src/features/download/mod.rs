@@ -55,10 +55,7 @@ pub fn enqueue_single(
     let manager = app
         .try_state::<Manager>()
         .ok_or_else(|| AppError::Tool("queue not initialised".into()))?;
-    let settings = app
-        .try_state::<crate::core::config::ConfigStore>()
-        .map(|c| c.get())
-        .unwrap_or_default();
+    let settings = crate::core::state::config(app).get();
 
     let root = if settings.default_dir.trim().is_empty() {
         crate::core::config::default_download_root(app)

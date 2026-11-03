@@ -36,6 +36,14 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
+            // ---- diagnostics ---------------------------------------------
+            // A `windows_subsystem` app has no console: capture panics and
+            // each startup step to <app data>/startup.log so a launch that
+            // shows nothing can still be diagnosed.
+            crate::core::logging::install_panic_hook();
+            crate::core::logging::init(&handle);
+            crate::core::logging::log_startup("setup", "begin");
+
             // ---- paths & configuration -----------------------------------
             let paths = AppPaths::resolve(&handle);
             paths
@@ -73,14 +81,18 @@ pub fn run() {
                 config,
             };
             registry.startup(&context);
+            crate::core::logging::log_startup("setup", "plugins started");
 
             // ---- window --------------------------------------------------
             // The window is created hidden (see tauri.conf.json) so a normal
             // launch does not flash a blank white frame before React mounts.
             if !start_hidden {
                 crate::features::system::window::show_main_window(&handle);
+            } else {
+                crate::core::logging::log_startup("window", "started hidden (tray only)");
             }
 
+            crate::core::logging::log_startup("setup", "complete");
             Ok(())
         })
         .on_window_event(|window, event| {

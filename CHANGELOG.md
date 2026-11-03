@@ -6,6 +6,33 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.5] — 2026-11-04
+
+Fixes the window showing "localhost refused to connect" instead of the app.
+
+### Fixed
+
+- **The app opened to a browser error page, not the interface.** `Cargo.toml`
+  never declared Tauri's `custom-protocol` feature, so the `tauri` crate
+  compiled in development mode and the executable loaded `devUrl`
+  (`http://localhost:1420`) instead of the bundled frontend. Unless the Vite
+  dev server happened to be running, every launch showed
+  `ERR_CONNECTION_REFUSED — localhost refused to connect`. The feature is now
+  declared, so production builds embed the assets and run standalone.
+- **A minimized window looked like a crash.** `toggle_main_window` treated a
+  minimized window as visible (Windows reports it that way) and hid it, so the
+  tray icon could never bring it back. Minimized now counts as hidden, and the
+  reveal path un-minimizes before showing and focusing.
+
+### Added
+
+- **Startup log.** `<app data>/startup.log` records the pid, executable, launch
+  arguments, every setup step, window state and any panic. A
+  `windows_subsystem` app has no console, so a silent startup failure was
+  previously undiagnosable.
+
+---
+
 ## [2.0.4] — 2026-11-03
 
 Fixes "state not managed for field `config`", which stopped every download from

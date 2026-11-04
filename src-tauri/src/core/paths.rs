@@ -14,6 +14,9 @@ pub struct AppPaths {
     pub bin_dir: PathBuf,
 }
 
+/// Bundle identifier, also the data-directory name Tauri uses.
+pub const APP_ID: &str = "com.akoul.yt-downloader";
+
 impl AppPaths {
     pub fn resolve(app: &AppHandle) -> Self {
         let data_dir = app
@@ -21,6 +24,16 @@ impl AppPaths {
             .app_data_dir()
             .unwrap_or_else(|_| PathBuf::from("."));
 
+        Self::with_data_dir(data_dir)
+    }
+
+    /// Same layout without a Tauri handle, for the headless native-messaging
+    /// relay that runs before the app is built.
+    pub fn standalone() -> Self {
+        Self::with_data_dir(default_data_dir())
+    }
+
+    fn with_data_dir(data_dir: PathBuf) -> Self {
         Self {
             config_file: data_dir.join("settings.json"),
             queue_file: data_dir.join("queue.json"),
@@ -36,4 +49,36 @@ impl AppPaths {
         std::fs::create_dir_all(&self.bin_dir)?;
         Ok(())
     }
+}
+
+/// Resolve the per-user data directory the way Tauri does, without an app handle.
+fn default_data_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            return PathBuf::from(appdata).join(APP_ID);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join(APP_ID);
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Some(data) = std::env::var_os("XDG_DATA_HOME") {
+            return PathBuf::from(data).join(APP_ID);
+        }
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home).join(".local").join("share").join(APP_ID);
+        }
+    }
+
+    PathBuf::from(APP_ID)
 }

@@ -1,101 +1,20 @@
 # Vidaro
 
-**دانلودر یوتیوب برای دسکتاپ** — ساخته‌شده با Tauri 2 (Rust) + React + TypeScript.
+A desktop YouTube downloader for Windows, macOS and Linux — built with
+Tauri 2 (Rust) + React + TypeScript.
 
-**A desktop YouTube downloader** built with Tauri 2 (Rust) + React + TypeScript.
-
-![version](https://img.shields.io/badge/version-2.0.0-00a8ff)
-
----
-
-## فارسی
-
-### امکانات
-
-- **تک ویدیو، پلی‌لیست یا کل کانال** — ابتدا لیست ویدیوها بدون دانلود نمایش داده می‌شود، سپس انتخاب و دانلود
-- **شماره‌گذاری خودکار** — پلی‌لیست‌ها به ترتیب پلی‌لیست و کانال‌ها از قدیمی‌ترین به جدیدترین: `001 - نام ویدیو.mp4`
-- **مدیریت صف کامل** — صف، دانلود هم‌زمان قابل تنظیم، Pause/Resume/Cancel/Retry برای هر آیتم، درصد/سرعت/حجم/زمان باقی‌مانده، تاریخچه
-- **فرمت‌ها** — MP4 در کیفیت‌های 360p تا 4K، یا MP3 با کاور و متادیتا
-- **ساختار پوشه‌ها** — `Downloads/YouTube Downloader/<نام کانال یا پلی‌لیست>/` برای دسته‌ها و `.../Single Videos/` برای تک‌ویدیوها
-- **زمان‌بندی دو سطحی** — بازه سراسری در تنظیمات + زمان‌بندی اختصاصی برای هر آیتم
-- **پروکسی** — خاموش / سیستم / دستی (HTTP، HTTPS، SOCKS5، SOCKS5h)
-- **کلیپ‌بورد** — با کپی لینک یوتیوب، پیشنهاد دانلود نمایش داده می‌شود
-- **سینی سیستم** — بستن پنجره برنامه را نمی‌بندد؛ در سینی می‌ماند
-- **اجرای خودکار در پس‌زمینه** — با روشن شدن ویندوز، برنامه **مخفی** در سینی اجرا می‌شود و پنجره باز نمی‌شود
-- **دوزبانه** — فارسی (RTL) و انگلیسی، تم تاریک/روشن/سیستمی
-- **ابزارهای خودکار** — yt-dlp و ffmpeg در اولین اجرا دانلود می‌شوند (نصب‌کننده سبک می‌ماند)
-
-### اجرای توسعه
-
-```bash
-npm install
-npm run tauri dev
-```
-
-پیش‌نیازها: Node.js 20+، Rust toolchain (rustup)، و در ویندوز Visual Studio C++ Build Tools.
-
-### بیلد
-
-```bash
-npm run tauri build
-```
-
-خروجی در `src-tauri/target/release/bundle/`:
-- `msi/Vidaro_2.0.0_x64_en-US.msi`
-- `nsis/Vidaro_2.0.0_x64-setup.exe`
-
-### معماری
-
-```
-src-tauri/src/
-├── lib.rs                 ترکیب‌بندی: state، پلاگین‌ها، فرمان‌ها، پنجره
-├── core/                  زیرساخت مشترک
-│   ├── config.rs          تنظیمات + ConfigStore (cache + ذخیره اتمیک)
-│   ├── paths.rs           مسیرهای داده برنامه
-│   ├── process.rs         اجرای فرآیندها بدون پنجره کنسول
-│   ├── filename.rs        پاک‌سازی نام و جلوگیری از path traversal
-│   ├── events.rs          نام رویدادهای مشترک
-│   ├── error.rs           نوع خطای یکپارچه
-│   └── plugin.rs          trait پلاگین + Registry
-└── features/              پلاگین‌های مستقل
-    ├── tools/             yt-dlp و ffmpeg (مسیر، نصب، به‌روزرسانی)
-    ├── metadata/          لیست ویدیو/پلی‌لیست/کانال بدون دانلود
-    ├── download/          صف، Gate، اجرا، پارس پیشرفت، زمان‌بندی
-    ├── history/           تاریخچه
-    ├── settings/          فرمان‌های تنظیمات + Import/Export
-    ├── system/            سینی، کلیپ‌بورد، autostart
-    └── ipc/               پل Native Messaging برای افزونه مرورگر
-```
-
-هر پلاگین سه چیز را خودش مدیریت می‌کند: state، فرمان‌های Tauri، و هوک راه‌اندازی.
-برای افزودن قابلیت جدید فقط یک ماژول در `features/` بسازید و در `lib.rs` ثبت کنید.
-
-```
-src/
-├── App.tsx                پوسته برنامه
-├── main.tsx               ورودی React
-├── lib/                   api، types، i18n، format، app-context
-├── components/            Sidebar، Topbar، StatusBar، Toast، Overlay
-├── views/                 NewDownload، Queue، History، Settings
-└── styles/app.css
-```
-
-### امضای کد
-
-نصب‌کنندهٔ بدون امضا در ویندوز پیام «Windows protected your PC» نشان می‌دهد و
-macOS اجازهٔ اجرا نمی‌دهد. خط تولید از امضای کد پشتیبانی می‌کند و اگر
-اعتبارنامه‌ای تنظیم نشده باشد، بدون امضا بیلد می‌شود. جزئیات (نام Secretها) در
-بخش انگلیسی «Code signing» آمده است.
+![version](https://img.shields.io/badge/version-2.1.0-00a8ff)
+![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-00a8ff)
 
 ---
 
-## English
-
-### Features
+## Features
 
 - **Single video, playlist or whole channel** — preview the list first, then pick what to download
 - **Automatic numbering** — playlist order, or oldest → newest for channels: `001 - Video Name.mp4`
 - **Full download manager** — queue, configurable concurrency, per-item pause/resume/cancel/retry, speed/size/ETA, history
+- **Resumable downloads** — a download interrupted today continues from the same byte next week
+- **Right-click menu** — open file, show in folder, copy link/title/path, pause, cancel, retry, remove
 - **Formats** — MP4 from 360p to 4K, or MP3 with cover art and metadata
 - **Folder layout** — `Downloads/YouTube Downloader/<playlist or channel>/` for batches, `.../Single Videos/` for one-offs
 - **Two-level scheduler** — a global time window plus per-item schedules
@@ -105,39 +24,164 @@ macOS اجازهٔ اجرا نمی‌دهد. خط تولید از امضای ک�
 - **Hidden autostart** — Vidaro starts in the tray at boot without opening a window
 - **Bilingual UI** — Persian (RTL) and English, dark/light/system themes
 - **Self-provisioning tools** — yt-dlp and ffmpeg are fetched on first run, keeping the installer small
+- **Browser extension** — send the current page to Vidaro from Chrome, Edge or Firefox
 
-### Development
+---
+
+## Installation
+
+Download the installer for your platform from the
+[releases page](https://github.com/DashAkoul/vidaro/releases):
+
+| Platform | File |
+| --- | --- |
+| Windows | `Vidaro_<version>_x64-setup.exe` (NSIS) or `Vidaro_<version>_x64_en-US.msi` |
+| macOS | `Vidaro_<version>_universal.dmg` |
+| Linux | `Vidaro_<version>_amd64.AppImage` or `.deb` |
+
+yt-dlp and ffmpeg are **not** bundled. They are downloaded into the app data
+folder on first run, or from **Settings → Download tools**.
+
+---
+
+## Browser extension
+
+The extension adds a **Download with Vidaro** button to YouTube, a context-menu
+entry, and a toolbar popup. It talks to the desktop app over native messaging,
+so the app must be running.
+
+### How the connection works
+
+```
+extension  ──chrome.runtime.connectNative──▶  vidaro.exe --native-messaging
+                                                     │  (headless relay)
+                                                     ▼  127.0.0.1 + token
+                                              Vidaro GUI process
+```
+
+The browser launches the executable as its native host. Because Vidaro is a
+single-instance GUI app, that process must not open a window or take the
+instance slot — it runs as a headless relay and forwards each message to the
+running app over a loopback socket. Registration is automatic: on every start
+the app writes the host manifest and points Chrome, Chromium, Edge, Brave,
+Vivaldi, Opera and Firefox at it.
+
+### Install (Chrome / Edge / Brave)
+
+1. Run `npm run ext:build` — this writes `extensions/dist/chrome`.
+2. Open `chrome://extensions`, enable **Developer mode**.
+3. **Load unpacked** → select `extensions/dist/chrome`.
+
+The manifest carries a fixed `key`, so the extension id stays
+`noaejgifefjnfjjedhghmejpnfmmmkfb` regardless of where the folder lives. That id
+is what the native host allow-list checks, so keep the folder anywhere — the
+link keeps working.
+
+### Install (Firefox)
+
+1. Run `npm run ext:build`.
+2. Open `about:debugging#/runtime/this-firefox`.
+3. **Load Temporary Add-on** → pick `extensions/dist/firefox/manifest.json`.
+
+Firefox identifies the extension as `vidaro@dashakoul.dev` (declared in
+`browser_specific_settings`), which is the id the native host allow-list uses.
+
+### What it can do
+
+| Action | Where |
+| --- | --- |
+| Download the current page | Popup → **Download**, or the button next to the video title |
+| Download a linked video | Right-click a link → **Download with Vidaro** |
+| Pick quality / audio-only | Popup → Format and Quality |
+| Watch progress | The injected button shows live percentage and final state |
+| Open the app | Popup → **Open in Vidaro App** |
+
+---
+
+## Development
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-Requires Node.js 20+, a Rust toolchain (rustup), and Visual Studio C++ Build Tools on Windows.
+Requires Node.js 20+, a Rust toolchain (rustup), and Visual Studio C++ Build
+Tools on Windows.
 
 ### Build
 
 ```bash
-npm run tauri build
+npm run tauri build     # desktop installers
+npm run ext:build       # browser extension packages
 ```
 
-Artifacts land in `src-tauri/target/release/bundle/`.
+Desktop artifacts land in `src-tauri/target/release/bundle/`, extension
+packages in `extensions/dist/`.
 
-### Architecture
+---
+
+## Architecture
+
+```
+src-tauri/src/
+├── lib.rs                 composition root: state, plugins, commands, window
+├── main.rs                entry point; detects native-host invocations
+├── core/                  shared infrastructure
+│   ├── config.rs          settings + ConfigStore (cache + atomic writes)
+│   ├── paths.rs           application data layout
+│   ├── process.rs         spawn helpers (no console window on Windows)
+│   ├── filename.rs        name sanitising and path-traversal guards
+│   ├── logging.rs         startup log + panic capture
+│   ├── state.rs           typed access to Tauri managed state
+│   ├── events.rs          shared event names
+│   ├── error.rs           unified error type
+│   └── plugin.rs          plugin trait + registry
+└── features/              self-contained plugins
+    ├── tools/             yt-dlp and ffmpeg (paths, install, update)
+    ├── metadata/          list videos/playlists/channels without downloading
+    ├── download/          queue, gate, runner, progress parser, scheduler
+    ├── history/           completed downloads
+    ├── settings/          settings commands + import/export
+    ├── system/            tray, clipboard, autostart, window helpers
+    └── ipc/               browser bridge: messages, relay, registration
+```
 
 Each feature is a self-contained plugin: it owns its state, registers its own
 Tauri commands, and runs its own startup hook. `lib.rs` only wires them
 together, so adding a capability never means editing unrelated modules.
 
-### Notes
+```
+src/
+├── App.tsx                application shell
+├── main.tsx               React entry point
+├── lib/                   api, types, i18n, format, app-context, clipboard
+├── components/            Sidebar, Topbar, StatusBar, ContextMenu, Toast
+├── views/                 NewDownload, Queue, History, Settings
+└── styles/app.css
+```
 
-- yt-dlp and ffmpeg are **not** bundled in the installer. They are downloaded
-  into the app data folder on first run (or from Settings → Download tools).
+```
+extensions/
+├── shared/                scripts and markup used by every browser
+├── chrome/manifest.json   MV3 service worker + fixed key
+├── firefox/manifest.json  MV3 event page + gecko id
+├── build.mjs              assembles dist/chrome and dist/firefox
+└── dist/                  generated packages (load these)
+```
+
+---
+
+## Notes
+
 - On networks where YouTube is filtered, configure a proxy in Settings.
 - Release builds use `lto = false` because thin-LTO breaks linking of the
   `ring` crate on MSVC.
+- The app writes `startup.log` next to its settings; it records each start and
+  any panic, which is the fastest way to diagnose "it does not start".
 
-### Code signing
+---
+
+## Code signing
 
 Unsigned builds make Windows show "Windows protected your PC" and macOS refuse
 to open the app without a manual override. The pipeline supports both signers
@@ -159,3 +203,10 @@ unaffected.
 workflow exports them only when `APPLE_CERTIFICATE` exists (an empty value would
 make the bundler attempt an invalid signature); Tauri then signs and notarizes
 the `.app` and `.dmg`.
+
+---
+
+## Changelog
+
+Every release and the exact changes in it are recorded in
+[CHANGELOG.md](CHANGELOG.md).

@@ -215,6 +215,8 @@ async fn handle_line(
                 return;
             }
             parser::LineEvent::OutputPath { path, stage } => {
+                // Remembered so a cancel can delete the matching `.part` file.
+                inner.note_destination(&path);
                 st.output_path = Some(path);
                 if let Some(stage) = stage {
                     inner.with_item(|item| item.stage = stage);

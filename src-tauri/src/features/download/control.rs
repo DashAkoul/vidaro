@@ -31,9 +31,9 @@ pub fn set_status(
     let snapshot = inner.with_item(|item| {
         item.status = status;
         item.paused_by = paused_by;
-        if status == ItemStatus::Queued {
-            item.reset_progress();
-        }
+        // Progress is deliberately *not* reset when an item returns to the
+        // queue: resuming continues from the `.part` file, so zeroing here
+        // made a 40%-done download flash back to 0% until yt-dlp reported.
         if status != ItemStatus::Paused {
             item.speed_bps = 0.0;
             item.eta_secs = 0.0;
@@ -92,6 +92,9 @@ pub async fn cancel(app: &AppHandle, queue: &Queue, inner: &Arc<ItemInner>) {
         control.paused = false;
     }
     inner.kill_child().await;
+    // A cancelled download is abandoned, not parked: drop the `.part` files so
+    // they cannot sit in the folder forever. Pausing keeps them for resume.
+    inner.remove_partials();
     set_status(app, queue, inner, ItemStatus::Cancelled, None);
 }
 
@@ -104,6 +107,8 @@ pub async fn retry(app: &AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
         control.cancelled = false;
         control.paused = false;
     }
+    // A new attempt reports its own destinations.
+    inner.clear_destinations();
     inner.with_item(|item| {
         item.output_path = None;
         item.error = None;
@@ -124,6 +129,9 @@ pub async fn remove(app: &AppHandle, queue: &Arc<Queue>, id: &str) -> bool {
         control.cancelled = true;
     }
     inner.kill_child().await;
+    // Removing an unfinished item discards its partial download; leaving the
+    // `.part` behind would orphan it with nothing in the queue pointing at it.
+    inner.remove_partials();
     queue.remove(id);
     persist(app, queue);
     events::emit_empty(app, events::QUEUE_CHANGED);

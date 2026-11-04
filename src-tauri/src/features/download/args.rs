@@ -14,13 +14,18 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths) -> Vec<String>
     let mut args: Vec<String> = [
         "--newline",
         "--no-playlist",
+        // Resume from the `.part` file. A download paused today can be
+        // continued next week: yt-dlp re-extracts fresh URLs and seeks to the
+        // byte offset already on disk.
         "--continue",
         "--no-overwrites",
         "--no-colors",
+        // Generous retries: a long download crossing a flaky connection should
+        // not fail the whole item over a few dropped fragments.
         "--retries",
-        "5",
+        "10",
         "--fragment-retries",
-        "5",
+        "10",
         "--socket-timeout",
         "30",
     ]

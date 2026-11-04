@@ -1,11 +1,13 @@
 import { memo, useCallback, useMemo, useState } from "react";
 
+import ContextMenu, { type ContextMenuItem } from "../components/ContextMenu";
 import { useApp, type QueueFilter } from "../lib/app-context";
 import {
   cancelItem,
   clearFinished,
   describeError,
   openDownloadFolder,
+  openFile,
   pauseAll,
   pauseItem,
   removeItem,
@@ -14,6 +16,7 @@ import {
   retryItem,
   updateItemSchedule,
 } from "../lib/api";
+import { copyText } from "../lib/clipboard";
 import { clampPercent, formatBytes, formatEta, formatSpeed } from "../lib/format";
 import { useI18n, type TKey } from "../lib/i18n";
 import type { Item, ItemStatus } from "../lib/types";
@@ -43,6 +46,116 @@ const FILTERS: Record<QueueFilter, (item: Item) => boolean> = {
   paused: (item) => item.status === "paused",
   failed: (item) => item.status === "error",
 };
+
+type Translate = (key: TKey, vars?: Record<string, string | number>) => string;
+type Guard = (action: () => Promise<unknown>) => Promise<void>;
+type Copy = (text: string) => Promise<void>;
+
+/**
+ * Build the right-click menu for one row.
+ *
+ * Items are contextual: a running download offers pause/cancel, a finished one
+ * offers open/copy path, and a cancelled one offers a fresh attempt. Actions
+ * always go through the same `guard` used by the inline buttons, so failures
+ * are reported consistently.
+ */
+function buildMenu(item: Item, t: Translate, guard: Guard, copy: Copy): ContextMenuItem[] {
+  const running =
+    item.status === "active" || item.status === "queued" || item.status === "scheduled";
+  const paused = item.status === "paused";
+  const items: ContextMenuItem[] = [];
+
+  if (running) {
+    items.push({
+      id: "pause",
+      label: t("pause"),
+      icon: "❚❚",
+      onSelect: () => void guard(() => pauseItem(item.id)),
+    });
+  }
+  if (paused) {
+    items.push({
+      id: "resume",
+      label: t("resume"),
+      icon: "▶",
+      onSelect: () => void guard(() => resumeItem(item.id)),
+    });
+  }
+  if (item.status === "error" || item.status === "cancelled") {
+    items.push({
+      id: "retry",
+      label: item.status === "cancelled" ? t("downloadAgain") : t("retry"),
+      icon: "↻",
+      onSelect: () => void guard(() => retryItem(item.id)),
+    });
+  }
+  if (running || paused) {
+    items.push({
+      id: "cancel",
+      label: t("cancel"),
+      icon: "✕",
+      danger: true,
+      onSelect: () => void guard(() => cancelItem(item.id)),
+    });
+  }
+
+  items.push({
+    id: "copyLink",
+    label: t("copyLink"),
+    icon: "🔗",
+    separator: true,
+    onSelect: () => void copy(item.url),
+  });
+  items.push({
+    id: "copyTitle",
+    label: t("copyTitle"),
+    icon: "📝",
+    onSelect: () => void copy(item.title),
+  });
+  if (item.outputPath) {
+    items.push({
+      id: "copyPath",
+      label: t("copyPath"),
+      icon: "📄",
+      onSelect: () => void copy(item.outputPath as string),
+    });
+  }
+
+  if (item.status === "completed" && item.outputPath) {
+    items.push({
+      id: "openFile",
+      label: t("openFile"),
+      icon: "▶️",
+      separator: true,
+      onSelect: () => void guard(() => openFile(item.outputPath as string)),
+    });
+    items.push({
+      id: "openFolder",
+      label: t("openFolder"),
+      icon: "📂",
+      onSelect: () => void guard(() => openDownloadFolder(item.id)),
+    });
+  } else {
+    items.push({
+      id: "openFolder",
+      label: t("openFolder"),
+      icon: "📂",
+      separator: true,
+      onSelect: () => void guard(() => openDownloadFolder(item.id)),
+    });
+  }
+
+  items.push({
+    id: "remove",
+    label: t("remove"),
+    icon: "🗑",
+    danger: true,
+    separator: true,
+    onSelect: () => void guard(() => removeItem(item.id)),
+  });
+
+  return items;
+}
 
 interface Group {
   key: string;
@@ -134,6 +247,26 @@ export default function Queue() {
     }
   }, []);
 
+  const [menu, setMenu] = useState<{ x: number; y: number; item: Item } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const copy = useCallback(
+    async (text: string) => {
+      if (await copyText(text)) {
+        setToast(t("copied"));
+        window.setTimeout(() => setToast(null), 1600);
+      }
+    },
+    [t],
+  );
+
+  // Also stable: `memo` on the row compares props by identity.
+  const openMenu = useCallback((event: React.MouseEvent, item: Item) => {
+    event.preventDefault();
+    setMenu({ x: event.clientX, y: event.clientY, item });
+  }, []);
+
   return (
     <div className="view">
       <div className="toolbar">
@@ -199,7 +332,7 @@ export default function Queue() {
               {open && (
                 <div className="accordion-body">
                   {group.items.map((item) => (
-                    <QueueRow key={item.id} item={item} onAction={guard} />
+                    <QueueRow key={item.id} item={item} onAction={guard} onMenu={openMenu} />
                   ))}
                 </div>
               )}
@@ -207,6 +340,16 @@ export default function Queue() {
           );
         })
       )}
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={buildMenu(menu.item, t, guard, copy)}
+          onClose={closeMenu}
+        />
+      )}
+      {toast && <div className="saved-toast">{toast}</div>}
     </div>
   );
 }
@@ -214,9 +357,11 @@ export default function Queue() {
 const QueueRow = memo(function QueueRow({
   item,
   onAction,
+  onMenu,
 }: {
   item: Item;
   onAction: (action: () => Promise<unknown>) => Promise<void>;
+  onMenu: (event: React.MouseEvent, item: Item) => void;
 }) {
   const { t } = useI18n();
   const [editingSchedule, setEditingSchedule] = useState(false);
@@ -229,7 +374,10 @@ const QueueRow = memo(function QueueRow({
     item.status === "queued" || item.status === "scheduled" || item.status === "paused";
 
   return (
-    <div className={`dl-card ${item.status}`}>
+    <div
+      className={`dl-card ${item.status}`}
+      onContextMenu={(event) => onMenu(event, item)}
+    >
       <div className="dl-card-main">
         <div className="dl-title" title={item.title}>
           {item.index != null && (

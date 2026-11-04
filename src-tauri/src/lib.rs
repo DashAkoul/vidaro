@@ -140,6 +140,7 @@ pub fn run() {
             features::history::commands::get_history,
             features::history::commands::clear_history,
             features::history::commands::reveal_path,
+            features::history::commands::open_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Vidaro application");

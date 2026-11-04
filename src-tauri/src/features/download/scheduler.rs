@@ -65,6 +65,18 @@ pub fn spawn_global(app: AppHandle, queue: Arc<Queue>) {
 }
 
 async fn tick(app: &AppHandle, queue: &Arc<Queue>) {
+    // Progress is only persisted on status changes, so an abrupt shutdown (or
+    // a crash) could lose the position a long download had reached. Flushing
+    // while something is running keeps `queue.json` within 20 s of the truth,
+    // which is what makes resuming days later show the right percentage.
+    let has_active = queue
+        .all()
+        .iter()
+        .any(|inner| inner.status() == ItemStatus::Active);
+    if has_active {
+        crate::features::download::queue::persist(app, queue);
+    }
+
     let Some(config) = crate::core::state::config_opt(app) else {
         return;
     };

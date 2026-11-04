@@ -49,6 +49,7 @@ export const resumeAll = () => invoke<void>("resume_all");
 export const clearFinished = () => invoke<void>("clear_finished");
 export const openDownloadFolder = (id: string) =>
   invoke<void>("open_download_folder", { id });
+export const openFile = (path: string) => invoke<void>("open_file", { path });
 
 export const updateItemSchedule = (
   id: string,

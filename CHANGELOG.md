@@ -6,6 +6,40 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.7] — 2026-11-04
+
+Resuming an interrupted download is now reliable — even days later — and the
+queue has a proper right-click menu.
+
+### Added
+
+- **Context menu on every queue row.** Right-clicking a download opens a
+  desktop-style menu: pause/resume, cancel, retry or download again, copy link,
+  copy title, copy file path, open the finished file, show it in the folder,
+  and remove. Entries follow the item's state (a finished download offers
+  *Open file*, a cancelled one offers *Download again*). The menu clamps itself
+  to the window, closes on Escape, click-outside, scroll or resize, and
+  confirms copies with a short toast.
+- **`open_file` command** so a finished download can be opened with the system
+  player instead of only being revealed in its folder.
+
+### Improved
+
+- **Progress survives an interruption.** Items that were downloading when the
+  app closed come back *paused at the percentage they reached*; previously the
+  percentage was reset to 0, so a half-finished file looked untouched.
+  Resuming no longer zeroes the bar either — it continues from where it was.
+- **The queue is flushed every 20 s while downloading**, so a crash or a hard
+  shutdown loses at most a few seconds of position instead of everything.
+- **More retries** (10 instead of 5, for both `--retries` and
+  `--fragment-retries`) so a long download crossing a flaky connection does not
+  fail the whole item.
+- **Partial files are cleaned up.** Cancelling or removing an unfinished
+  download now deletes the `.part` files yt-dlp left behind; pausing keeps them
+  so the download can continue later.
+
+---
+
 ## [2.0.6] — 2026-11-04
 
 Cancelling a running download now actually stops it, and the browser context

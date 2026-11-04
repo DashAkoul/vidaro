@@ -38,3 +38,13 @@ pub fn reveal_path(path: String) -> AppResult<()> {
         }
     }
 }
+
+/// Open a finished download with the OS default application.
+#[tauri::command]
+pub fn open_file(path: String) -> AppResult<()> {
+    let target = PathBuf::from(&path);
+    if !target.is_file() {
+        return Err(AppError::NotFound(path));
+    }
+    tauri_plugin_opener::open_path(&target, None::<&str>).map_err(|e| AppError::Tool(e.to_string()))
+}

@@ -38,6 +38,9 @@ pub struct ItemInner {
     /// PID of the running yt-dlp process, kept outside the child mutex so a
     /// cancel can kill the process tree even while `wait_child` is awaiting.
     child_pid: AtomicU32,
+    /// Files yt-dlp announced with `Destination:` — used to delete the
+    /// `.part` leftovers when the user cancels.
+    destinations: Mutex<Vec<String>>,
     pub control: Mutex<Control>,
     running: AtomicBool,
 }
@@ -48,12 +51,60 @@ impl ItemInner {
             item: Mutex::new(item),
             child: tokio::sync::Mutex::new(None),
             child_pid: AtomicU32::new(0),
+            destinations: Mutex::new(Vec::new()),
             control: Mutex::new(Control {
                 paused: false,
                 cancelled: false,
             }),
             running: AtomicBool::new(false),
         })
+    }
+
+    /// Remember a destination yt-dlp is writing to (called once per stream).
+    pub fn note_destination(&self, path: &str) {
+        if path.is_empty() {
+            return;
+        }
+        let mut guard = self
+            .destinations
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        if !guard.iter().any(|p| p == path) {
+            guard.push(path.to_string());
+        }
+    }
+
+    pub fn clear_destinations(&self) {
+        self.destinations
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clear();
+    }
+
+    /// Delete yt-dlp's partial downloads for this item.
+    ///
+    /// Only paths yt-dlp itself reported are touched, so a shared folder with
+    /// other items cannot lose their data.
+    pub fn remove_partials(&self) -> usize {
+        let paths: Vec<String> = self
+            .destinations
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+
+        let mut removed = 0;
+        for dest in paths {
+            for suffix in [".part", ".ytdl", ".temp"] {
+                let candidate = format!("{dest}{suffix}");
+                if std::fs::remove_file(&candidate).is_ok() {
+                    removed += 1;
+                }
+            }
+        }
+        if removed > 0 {
+            self.clear_destinations();
+        }
+        removed
     }
 
     /// Claim the item for this task. Returns `None` when it is already running.
@@ -319,11 +370,86 @@ pub fn load_from(path: &Path, queue: &Queue) {
         ) {
             item.status = ItemStatus::Paused;
             item.paused_by = Some(PausedBy::User);
-            item.percent = 0.0;
+            // Progress is kept on purpose: yt-dlp resumes from the `.part`
+            // file, so a download interrupted today and resumed next week
+            // should still show where it stopped instead of jumping to 0%.
             item.speed_bps = 0.0;
             item.eta_secs = 0.0;
-            item.stage = Stage::Download;
+            if item.stage == Stage::Merge {
+                item.stage = Stage::Download;
+            }
         }
         queue.insert(ItemInner::new(item));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_queue(path: &Path, json: &str) {
+        std::fs::write(path, json).expect("write queue fixture");
+    }
+
+    /// A download interrupted by closing the app must come back paused *at the
+    /// percentage it reached* — that is what makes resuming days later
+    /// understandable instead of showing 0% next to a half-written file.
+    #[test]
+    fn interrupted_items_keep_their_progress() {
+        let dir = std::env::temp_dir().join("vidaro-queue-test-progress");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("queue.json");
+        write_queue(
+            &path,
+            r#"[{
+                "id":"a","url":"https://youtu.be/x","videoId":"x","title":"T","index":null,
+                "dir":"/tmp/out","prefix":"","quality":"720","audioOnly":false,"batchName":"",
+                "status":"active","percent":42.5,"speedBps":1234.0,"etaSecs":30.0,
+                "totalBytes":49000000,"downloadedBytes":20825000,"stage":"download",
+                "error":null,"outputPath":null,"createdAt":1,
+                "scheduleStart":null,"scheduleEnd":null,"pausedBy":null
+            }]"#,
+        );
+
+        let queue = Queue::new(2);
+        load_from(&path, &queue);
+
+        let items = queue.snapshot();
+        assert_eq!(items.len(), 1);
+        let item = &items[0];
+        assert_eq!(item.status, ItemStatus::Paused);
+        assert_eq!(item.paused_by, Some(PausedBy::User));
+        assert!((item.percent - 42.5).abs() < 0.01, "percent was {}", item.percent);
+        assert_eq!(item.downloaded_bytes, 20_825_000);
+        assert_eq!(item.total_bytes, 49_000_000);
+        // Volatile values are cleared.
+        assert_eq!(item.speed_bps, 0.0);
+        assert_eq!(item.eta_secs, 0.0);
+    }
+
+    /// A queue entry that was mid-merge when the app closed restarts at the
+    /// download stage, because the merge has to be redone from the parts.
+    #[test]
+    fn interrupted_merge_returns_to_download_stage() {
+        let dir = std::env::temp_dir().join("vidaro-queue-test-merge");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("queue.json");
+        write_queue(
+            &path,
+            r#"[{
+                "id":"b","url":"https://youtu.be/y","videoId":"y","title":"T2","index":null,
+                "dir":"/tmp/out","prefix":"","quality":"best","audioOnly":false,"batchName":"",
+                "status":"queued","percent":100.0,"speedBps":0.0,"etaSecs":0.0,
+                "totalBytes":10,"downloadedBytes":10,"stage":"merge",
+                "error":null,"outputPath":null,"createdAt":2,
+                "scheduleStart":null,"scheduleEnd":null,"pausedBy":null
+            }]"#,
+        );
+
+        let queue = Queue::new(2);
+        load_from(&path, &queue);
+        let items = queue.snapshot();
+        assert_eq!(items[0].status, ItemStatus::Paused);
+        assert_eq!(items[0].stage, Stage::Download);
     }
 }

@@ -4,6 +4,76 @@ All notable changes to Vidaro are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## Version index
+
+| Version | Date | Headline |
+| --- | --- | --- |
+| [2.1.0](#210--2026-11-04) | 2026-11-04 | Browser extension for Chrome and Firefox |
+| [2.0.7](#207--2026-11-04) | 2026-11-04 | Resumable downloads, right-click menu |
+| [2.0.6](#206--2026-11-04) | 2026-11-04 | Cancel stops the whole process tree |
+| [2.0.5](#205--2026-11-04) | 2026-11-04 | Release builds embed the frontend |
+| [2.0.4](#204--2026-11-03) | 2026-11-03 | Downloads can be queued again |
+| [2.0.3](#203--2026-11-01) | 2026-11-01 | Real reason for a failed fetch |
+| [2.0.2](#202--2026-10-29) | 2026-10-29 | Error boundary, typed parsing, signing |
+| [2.0.1](#201--2026-10-29) | 2026-10-29 | URL validation before yt-dlp |
+| [2.0.0](#200--2026-10-29) | 2026-10-29 | Rewrite on Tauri 2 |
+| [1.1.0](#110--2025-09-27) | 2025-09-27 | Pre-rewrite release |
+| [0.2.0](#020--2025-09-20) | 2025-09-20 | Early prototype |
+| [0.1.0](#010--2025-09-13) | 2025-09-13 | First release |
+
+---
+
+## [2.1.0] — 2026-11-04
+
+Ships the browser extension for Chrome and Firefox, and reworks the bridge it
+needs so it coexists with the single-instance desktop app.
+
+### Added
+
+- **Chrome / Edge / Brave / Vivaldi / Opera extension** (Manifest V3). A
+  "Download with Vidaro" button appears next to the video title and on
+  playlist/channel rows, showing live progress and the final state; a
+  right-click entry downloads any linked YouTube video; the toolbar popup
+  offers quality and audio-only selection.
+- **Firefox extension** (Manifest V3 event page) built from the same sources.
+  Firefox identifies it as `vidaro@dashakoul.dev`; Chromium sees the fixed id
+  `noaejgifefjnfjjedhghmejpnfmmmkfb`, pinned by the manifest `key`.
+- **Automatic native-host registration.** On every start the app writes the
+  host manifest and points Chrome, Chromium, Edge, Brave, Vivaldi, Opera and
+  Firefox at it — a registry key on Windows, the well-known directories on
+  macOS and Linux. Only browsers that are actually installed are touched.
+- **Headless relay mode.** Browsers launch the executable as their native host.
+  Because Vidaro is a single-instance GUI app, that process now detects the
+  browser origin (`chrome-extension://…`, `moz-extension://…`) and runs as a
+  windowless relay that forwards each message to the running app over a
+  loopback socket guarded by a random token. Previously such a launch would
+  either open a second window or be terminated by the single-instance guard,
+  which made native messaging impossible.
+- **`show` message** so the extension can bring the app window to the front.
+- **`npm run ext:build`** assembles `extensions/dist/chrome` and
+  `extensions/dist/firefox`, verifying that every file the manifest references
+  exists.
+
+### Changed
+
+- **README rewritten in English**, with a full extension guide and the current
+  architecture map.
+- This changelog gained a version index for quick tracing.
+- Version bumped to 2.1.0 across the app, the manifests and the installers.
+
+### Fixed
+
+- **The popup never worked**: `popup.js` declared `const typeEl` twice in the
+  same function, which is a `SyntaxError`, so the whole script failed to parse.
+- **The popup opened its own native port**, which dies as soon as the popup
+  closes. A single port is now owned by the background worker, with every call
+  matched to its reply by `requestId`.
+- **The background never answered content-script requests**, so every action
+  waited for a response that never came.
+- **Duplicate `case` labels** in the background and content scripts, and use of
+  the `Notification` API inside a service worker, where it does not exist
+  (notifications now go through `chrome.notifications`).
+
 ---
 
 ## [2.0.7] — 2026-11-04

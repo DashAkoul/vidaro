@@ -22,6 +22,16 @@ fn launched_hidden() -> bool {
     std::env::args().any(|arg| arg == "--hidden" || arg == "--autostart")
 }
 
+/// True when a browser started this process as its native-messaging host.
+pub fn is_native_host_invocation(args: &[String]) -> bool {
+    features::ipc::host::is_host_invocation(args)
+}
+
+/// Run the headless relay instead of the GUI. Never returns.
+pub fn run_native_host() -> ! {
+    features::ipc::host::run()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let start_hidden = launched_hidden();

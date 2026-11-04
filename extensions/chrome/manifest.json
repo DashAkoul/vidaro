@@ -1,40 +1,42 @@
 {
   "manifest_version": 3,
-  "name": "Vidaro YouTube Downloader",
-  "version": "1.1.0",
-  "description": "Download YouTube videos, playlists, and channels with Vidaro",
-  "permissions": [
-    "nativeMessaging",
-    "activeTab",
-    "scripting",
-    "contextMenus"
-  ],
-  "host_permissions": [
-    "*://*.youtube.com/*"
-  ],
+  "name": "Vidaro — YouTube Downloader",
+  "version": "2.1.0",
+  "description": "Send YouTube videos, playlists and channels straight to the Vidaro desktop app.",
+  "minimum_chrome_version": "102",
+
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1nnjUtfWVrEFg7FrJrZlwQqPhlGPWiOz4edHqrf27MMy26O1tKt8UwyGpfQOtuYxusSDDKsriUuDGn8HyfoISMSO5vcQEdOluxD8qANGSJJet1gLvwsEemhfEDolVCzWbX+IqPVxqnaLkHqfRg2unzuBiqH9//RiUCdAQOUrR3uEsE4ZNWXo6LsYrIcESyqOIIvuUczNzAsKIV/uXgPWQIs/Cj7JvkhTJyJfE5V4heHUj2qxF68D5o78y8HgNyyPg910GicuNYVRXqe7ikKo2/2y1WEFB8V2OpR4oUgRm7rZBlx/Fox/KFgeJDqlBu2cOv4O6GagvMmWRLZ43QpEmQIDAQAB",
+
+  "permissions": ["nativeMessaging", "activeTab", "contextMenus", "notifications"],
+  "host_permissions": ["*://*.youtube.com/*", "*://youtu.be/*"],
+
   "background": {
     "service_worker": "background.js"
   },
+
   "content_scripts": [
     {
       "matches": ["*://*.youtube.com/*"],
       "js": ["content.js"],
-      "css": ["styles.css"],
       "run_at": "document_idle"
     }
   ],
+
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Vidaro YouTube Downloader"
-  },
-  "web_accessible_resources": [{
-    "resources": ["download-page.html", "download-page.js", "styles.css"],
-    "matches": ["*://*.youtube.com/*"]
-  }]
+    "default_title": "Vidaro — Download this page",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
 }

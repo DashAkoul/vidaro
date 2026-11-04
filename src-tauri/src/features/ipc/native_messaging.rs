@@ -1,9 +1,7 @@
-//! Native-messaging bridge for the bundled browser extension.
+//! Message handling for the browser extension.
 //!
-//! Implements Chrome's stdio protocol: a 4-byte little-endian length prefix
-//! followed by a UTF-8 JSON payload, in both directions.
-
-use std::io::{Read, Write};
+//! The stdio protocol itself lives in `host.rs` (relay) and the transport in
+//! `bridge.rs`; this module only decides what each message does.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager as _};
@@ -11,9 +9,6 @@ use tauri::{AppHandle, Manager as _};
 use crate::features::download::model::Item;
 use crate::features::download::queue::Manager;
 use crate::features::history::{self, HistoryEntry};
-
-/// Maximum accepted message size (Chrome's own limit is 1 MiB).
-const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -30,6 +25,8 @@ pub enum ExtensionMessage {
     GetHistory,
     ControlDownload { id: String, action: String },
     GetItemStatus { id: String },
+    /// Bring the running window to the front.
+    Show,
     Ping,
 }
 
@@ -51,9 +48,16 @@ fn error(message: impl Into<String>) -> NativeResponse {
     }
 }
 
-fn handle(app: &AppHandle, message: ExtensionMessage) -> NativeResponse {
+pub fn handle(app: &AppHandle, message: ExtensionMessage) -> NativeResponse {
     match message {
         ExtensionMessage::Ping => NativeResponse::Pong,
+
+        ExtensionMessage::Show => {
+            crate::features::system::window::show_main_window(app);
+            NativeResponse::Success {
+                data: serde_json::json!({ "ok": true }),
+            }
+        }
 
         ExtensionMessage::Download {
             url,
@@ -163,57 +167,6 @@ fn handle(app: &AppHandle, message: ExtensionMessage) -> NativeResponse {
     }
 }
 
-fn write_response(response: &NativeResponse) {
-    let Ok(json) = serde_json::to_string(response) else {
-        return;
-    };
-    let bytes = json.as_bytes();
-    if bytes.len() > MAX_MESSAGE_BYTES {
-        return;
-    }
-
-    let mut stdout = std::io::stdout().lock();
-    let _ = stdout.write_all(&(bytes.len() as u32).to_le_bytes());
-    let _ = stdout.write_all(bytes);
-    let _ = stdout.flush();
-}
-
-/// Start the bridge. Harmless when the app was not launched by a browser: the
-/// very first read hits EOF and the thread exits.
-pub fn start(app: AppHandle) {
-    std::thread::spawn(move || {
-        let stdin = std::io::stdin();
-        let mut stdin = stdin.lock();
-
-        loop {
-            let mut length_buffer = [0u8; 4];
-            if stdin.read_exact(&mut length_buffer).is_err() {
-                break;
-            }
-
-            let length = u32::from_le_bytes(length_buffer) as usize;
-            if length == 0 || length > MAX_MESSAGE_BYTES {
-                break;
-            }
-
-            let mut payload = vec![0u8; length];
-            if stdin.read_exact(&mut payload).is_err() {
-                break;
-            }
-
-            let response = match String::from_utf8(payload) {
-                Ok(text) => match serde_json::from_str::<ExtensionMessage>(&text) {
-                    Ok(message) => handle(&app, message),
-                    Err(e) => error(format!("invalid message: {e}")),
-                },
-                Err(_) => error("message was not valid UTF-8"),
-            };
-
-            write_response(&response);
-        }
-    });
-}
-
 pub struct IpcPlugin;
 
 impl crate::core::plugin::Plugin for IpcPlugin {
@@ -222,7 +175,10 @@ impl crate::core::plugin::Plugin for IpcPlugin {
     }
 
     fn startup(&self, ctx: &crate::core::plugin::AppContext) -> crate::core::error::AppResult<()> {
-        start(ctx.app.clone());
+        // Publish the loopback bridge the browser relay talks to, then make
+        // sure every installed browser knows where this executable is.
+        super::bridge::start(ctx.app.clone(), &ctx.paths);
+        super::registration::ensure(&ctx.paths);
         Ok(())
     }
 }

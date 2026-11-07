@@ -44,9 +44,16 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths) -> Vec<String>
     args.push("--ffmpeg-location".into());
     args.push(tools.ffmpeg_dir().to_string_lossy().to_string());
 
-    if let Some(proxy) = settings.proxy_url() {
-        args.push("--proxy".into());
-        args.push(proxy);
+    match settings.proxy_setting() {
+        crate::core::config::ProxySetting::Url(proxy) => {
+            args.push("--proxy".into());
+            args.push(proxy);
+        }
+        crate::core::config::ProxySetting::Direct => {
+            args.push("--proxy".into());
+            args.push(String::new());
+        }
+        crate::core::config::ProxySetting::Inherit => {}
     }
 
     if item.audio_only {

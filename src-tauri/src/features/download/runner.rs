@@ -101,10 +101,18 @@ pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
     command.process_group(0);
 
     // yt-dlp passes its environment on to ffmpeg, so this covers both.
-    if let Some(proxy) = settings.proxy_url() {
-        for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
-            command.env(key, &proxy);
+    match settings.proxy_setting() {
+        crate::core::config::ProxySetting::Url(proxy) => {
+            for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
+                command.env(key, &proxy);
+            }
         }
+        crate::core::config::ProxySetting::Direct => {
+            for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
+                command.env(key, "");
+            }
+        }
+        crate::core::config::ProxySetting::Inherit => {}
     }
 
     let mut child = match command.spawn() {

@@ -68,6 +68,18 @@ impl Default for Settings {
     }
 }
 
+/// How yt-dlp should reach the network.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProxySetting {
+    /// Explicitly bypass every proxy — yt-dlp needs `--proxy ""` for this,
+    /// otherwise it inherits the system/registry proxy on its own.
+    Direct,
+    /// Use this proxy URL.
+    Url(String),
+    /// Leave the environment alone.
+    Inherit,
+}
+
 impl Settings {
     /// Clamp values that come from untrusted sources (imported files, the UI).
     pub fn sanitize(&mut self) {
@@ -88,21 +100,145 @@ impl Settings {
         }
     }
 
-    /// Resolved proxy URL, if a manual proxy is configured.
-    pub fn proxy_url(&self) -> Option<String> {
-        if self.proxy_mode != "manual" {
-            return None;
+    /// Resolve the proxy setting into something yt-dlp understands.
+    ///
+    /// "off" must actively pass an empty proxy: yt-dlp (through Python's
+    /// `urllib`) otherwise picks up the Windows registry proxy or the
+    /// `HTTPS_PROXY` environment variable, so "off" used to do nothing.
+    /// "system" reads that same configuration and makes it explicit, which
+    /// keeps the download and the metadata fetch on the same connection.
+    pub fn proxy_setting(&self) -> ProxySetting {
+        match self.proxy_mode.as_str() {
+            "manual" => {
+                let host = self.proxy_host.trim();
+                if host.is_empty() {
+                    return ProxySetting::Direct;
+                }
+                let port = self.proxy_port.trim();
+                let url = if port.is_empty() {
+                    format!("http://{host}")
+                } else {
+                    format!("http://{host}:{port}")
+                };
+                ProxySetting::Url(url)
+            }
+            "system" => match detect_system_proxy() {
+                Some(url) => ProxySetting::Url(url),
+                // No explicit proxy found: let yt-dlp follow the environment
+                // (PAC files and per-app settings are invisible to us).
+                None => ProxySetting::Inherit,
+            },
+            _ => ProxySetting::Direct,
         }
-        let host = self.proxy_host.trim();
-        if host.is_empty() {
-            return None;
+    }
+}
+
+/// Turn a proxy server value into a URL yt-dlp accepts.
+///
+/// Windows stores either `host:port` or a per-protocol list such as
+/// `http=host:port;https=host:port`. Keep the https entry when present.
+fn normalise_proxy_server(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let chosen = if trimmed.contains('=') {
+        let https = trimmed
+            .split(';')
+            .find_map(|part| part.strip_prefix("https="));
+        https
+            .or_else(|| trimmed.split(';').next().and_then(|p| p.split_once('=').map(|(_, v)| v)))
+            .unwrap_or(trimmed)
+    } else {
+        trimmed
+    };
+
+    if chosen.is_empty() {
+        return None;
+    }
+    if chosen.starts_with("http://")
+        || chosen.starts_with("https://")
+        || chosen.starts_with("socks")
+    {
+        Some(chosen.to_string())
+    } else {
+        Some(format!("http://{chosen}"))
+    }
+}
+
+#[cfg(windows)]
+fn detect_system_proxy() -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let key = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
+        .ok()?;
+    let enabled: u32 = key.get_value("ProxyEnable").unwrap_or(0);
+    if enabled == 0 {
+        return None;
+    }
+    let server: String = key.get_value("ProxyServer").ok()?;
+    normalise_proxy_server(&server)
+}
+
+#[cfg(not(windows))]
+fn detect_system_proxy() -> Option<String> {
+    for name in ["HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy"] {
+        if let Ok(value) = std::env::var(name) {
+            if let Some(url) = normalise_proxy_server(&value) {
+                return Some(url);
+            }
         }
-        let port = self.proxy_port.trim();
-        if port.is_empty() {
-            Some(format!("http://{host}"))
-        } else {
-            Some(format!("http://{host}:{port}"))
-        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod proxy_tests {
+    use super::*;
+
+    #[test]
+    fn off_means_direct_connection() {
+        let settings = Settings::default();
+        assert_eq!(settings.proxy_setting(), ProxySetting::Direct);
+    }
+
+    #[test]
+    fn manual_proxy_is_a_url() {
+        let mut settings = Settings::default();
+        settings.proxy_mode = "manual".into();
+        settings.proxy_host = "127.0.0.1".into();
+        settings.proxy_port = "10808".into();
+        assert_eq!(
+            settings.proxy_setting(),
+            ProxySetting::Url("http://127.0.0.1:10808".to_string())
+        );
+    }
+
+    #[test]
+    fn manual_without_host_is_direct() {
+        let mut settings = Settings::default();
+        settings.proxy_mode = "manual".into();
+        assert_eq!(settings.proxy_setting(), ProxySetting::Direct);
+    }
+
+    #[test]
+    fn system_proxy_shapes() {
+        assert_eq!(
+            normalise_proxy_server("127.0.0.1:10808"),
+            Some("http://127.0.0.1:10808".to_string())
+        );
+        assert_eq!(
+            normalise_proxy_server("http=127.0.0.1:8080;https=127.0.0.1:8443"),
+            Some("http://127.0.0.1:8443".to_string())
+        );
+        assert_eq!(
+            normalise_proxy_server("socks5://127.0.0.1:1080"),
+            Some("socks5://127.0.0.1:1080".to_string())
+        );
+        assert_eq!(normalise_proxy_server("  "), None);
     }
 }
 

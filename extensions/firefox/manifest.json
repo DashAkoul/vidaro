@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Vidaro — YouTube Downloader",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Send YouTube videos, playlists and channels straight to the Vidaro desktop app.",
 
   "browser_specific_settings": {

@@ -72,7 +72,9 @@ pub async fn fetch_info(
             return Err(error);
         }
         emit_progress(&app, format!("retrying after: {error}"));
-        tokio::time::sleep(Duration::from_millis(1200)).await;
+        // A bot check can last a few seconds; a fixed 1.2 s delay retried into
+        // the same block every time. Back off progressively.
+        tokio::time::sleep(Duration::from_millis(2000 * attempt as u64)).await;
     }
 }
 
@@ -108,12 +110,46 @@ fn clean_error(raw: &str) -> String {
     text.trim().to_string()
 }
 
+/// Pick the most useful diagnostic out of yt-dlp's stderr tail.
+///
+/// An `ERROR:` always wins; a `WARNING:` that mentions a bot challenge wins
+/// over unrelated progress chatter; otherwise the last meaningful line is
+/// better than a generic "could not read this URL".
+fn best_error_line(lines: &[String]) -> String {
+    let is_block = |line: &str| {
+        line.contains("not a bot")
+            || line.contains("Sign in to confirm")
+            || line.contains("unavailable")
+            || line.contains("Unable to extract")
+    };
+
+    if let Some(line) = lines
+        .iter()
+        .rev()
+        .find(|line| line.starts_with("ERROR:") || is_block(line))
+    {
+        return line.clone();
+    }
+    if let Some(line) = lines.iter().rev().find(|line| line.starts_with("WARNING:")) {
+        return line.clone();
+    }
+    lines
+        .iter()
+        .rev()
+        .find(|line| !line.starts_with("[download]"))
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// Turn the two failure modes users actually hit into actionable sentences.
 fn friendly_error(raw: &str) -> String {
     let message = clean_error(raw);
 
-    if message.contains("not a bot") || message.contains("Sign in to confirm") {
-        return "YouTube asked to confirm you are not a bot. That is a block on the                 network, not on the video: switch to another VPN or proxy server and try again."
+    if message.contains("not a bot")
+        || message.contains("Sign in to confirm")
+        || message.contains("confirm you’re not a bot")
+    {
+        return "YouTube asked to confirm you are not a bot. This is a temporary block on your network/IP, not on the video — switch to another VPN or proxy server (Settings → Proxy), or wait a few minutes and try again."
             .to_string();
     }
     if message.contains("Video unavailable") || message.contains("This video is unavailable") {
@@ -169,9 +205,18 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
     }
     args.push("--dump-single-json".into());
 
-    if let Some(proxy) = crate::core::state::config(&app).get().proxy_url() {
-        args.push("--proxy".into());
-        args.push(proxy);
+    // yt-dlp inherits the process/registry proxy unless told otherwise, so
+    // "off" needs an explicit empty value.
+    match crate::core::state::config(&app).get().proxy_setting() {
+        crate::core::config::ProxySetting::Url(proxy) => {
+            args.push("--proxy".into());
+            args.push(proxy);
+        }
+        crate::core::config::ProxySetting::Direct => {
+            args.push("--proxy".into());
+            args.push(String::new());
+        }
+        crate::core::config::ProxySetting::Inherit => {}
     }
     args.push(target);
 
@@ -204,27 +249,38 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
     });
 
     // stderr carries progress and error messages.
+    //
+    // Rate limiting belongs to the *progress events*, not to the diagnostics:
+    // dropping every line that arrives within 250 ms of the previous one used
+    // to swallow the final `ERROR:` line, leaving the UI with a meaningless
+    // "yt-dlp could not read this URL". Keep the tail of the stream and pick
+    // the most informative line afterwards.
     let app_for_stderr = app.clone();
     let err_task = stderr.map(|err| {
         tauri::async_runtime::spawn(async move {
             let mut last_emit = Instant::now() - Duration::from_secs(1);
-            let mut last_message = String::new();
-            let mut lines = BufReader::new(err).lines();
-            while let Ok(Some(raw)) = lines.next_line().await {
+            let mut lines: Vec<String> = Vec::new();
+            let mut reader = BufReader::new(err).lines();
+            while let Ok(Some(raw)) = reader.next_line().await {
                 let cleaned = crate::features::download::parser::strip_ansi(&raw);
                 let line = cleaned.trim();
-                if line.is_empty() || line.starts_with("WARNING:") {
+                if line.is_empty() {
                     continue;
                 }
+                // Bound memory for pathological output while keeping the tail.
+                if lines.len() >= 200 {
+                    lines.remove(0);
+                }
+                lines.push(line.to_string());
+
                 if line.starts_with('[') || line.starts_with("ERROR:") {
                     if last_emit.elapsed() >= Duration::from_millis(250) {
                         last_emit = Instant::now();
-                        last_message = line.to_string();
-                        emit_progress(&app_for_stderr, last_message.clone());
+                        emit_progress(&app_for_stderr, line.to_string());
                     }
                 }
             }
-            last_message
+            best_error_line(&lines)
         })
     });
 
@@ -237,13 +293,19 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
         None => String::new(),
     };
 
-    let success = {
+    let (success, exit_code) = {
         let mut slot = child_slot().lock().await;
         match slot.take() {
-            Some(mut child) => child.wait().await.map(|s| s.success()).unwrap_or(false),
-            None => false,
+            Some(mut child) => match child.wait().await {
+                Ok(status) => (status.success(), status.code()),
+                Err(_) => (false, None),
+            },
+            None => (false, None),
         }
     };
+    let exit_note = exit_code
+        .map(|code| format!(" (exit code {code})"))
+        .unwrap_or_default();
 
     if CANCELLED.load(Ordering::SeqCst) {
         return Err(AppError::Cancelled);
@@ -253,7 +315,7 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
         let detail = if !last_error.is_empty() {
             friendly_error(&last_error)
         } else if !success {
-            "yt-dlp exited with an error".to_string()
+            format!("yt-dlp exited with an error{exit_note}")
         } else {
             "could not read video information".to_string()
         };
@@ -276,7 +338,9 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
             return Err(AppError::Invalid(if !last_error.is_empty() {
                 friendly_error(&last_error)
             } else if !success {
-                "yt-dlp could not read this URL".to_string()
+                format!(
+                    "yt-dlp returned no video information{exit_note}. Check the download tools and your network/proxy settings."
+                )
             } else {
                 "yt-dlp returned no video information".to_string()
             }));
@@ -508,6 +572,40 @@ mod tests {
             "ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies",
         );
         assert!(message.contains("switch to another VPN"), "{message}");
+        // The friendly text must still be recognised as transient, otherwise
+        // the retry loop would stop after the first failure.
+        assert!(is_transient(&message), "{message}");
+    }
+
+    /// Regression: the final bot-check line used to be dropped by the progress
+    /// rate limiter (and WARNING lines were discarded outright), so the UI
+    /// showed "yt-dlp could not read this URL" instead of the real reason.
+    #[test]
+    fn stderr_tail_keeps_the_bot_check() {
+        let lines: Vec<String> = vec![
+            "[youtube] Extracting URL: https://www.youtube.com/watch?v=x".into(),
+            "[youtube] x: Downloading webpage".into(),
+            "[youtube] x: Downloading player API JSON".into(),
+            "ERROR: [youtube] x: Sign in to confirm you’re not a bot. Use --cookies".into(),
+        ];
+        let picked = best_error_line(&lines);
+        assert!(picked.contains("not a bot"), "{picked}");
+        assert!(friendly_error(&picked).contains("switch to another VPN"));
+    }
+
+    #[test]
+    fn warning_only_bot_check_is_not_lost() {
+        let lines: Vec<String> = vec![
+            "[youtube] Extracting URL: https://youtu.be/x".into(),
+            "WARNING: [youtube] Sign in to confirm you’re not a bot".into(),
+        ];
+        let picked = best_error_line(&lines);
+        assert!(picked.contains("not a bot"), "{picked}");
+    }
+
+    #[test]
+    fn empty_stderr_returns_empty() {
+        assert_eq!(best_error_line(&[]), "");
     }
 
     #[test]

@@ -3,7 +3,7 @@
 A desktop YouTube downloader for Windows, macOS and Linux — built with
 Tauri 2 (Rust) + React + TypeScript.
 
-![version](https://img.shields.io/badge/version-2.1.0-00a8ff)
+![version](https://img.shields.io/badge/version-2.1.1-00a8ff)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-00a8ff)
 
 ---

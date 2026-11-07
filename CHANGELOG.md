@@ -8,6 +8,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 | Version | Date | Headline |
 | --- | --- | --- |
+| [2.1.1](#211--2026-11-07) | 2026-11-07 | Show the real fetch error; make proxy modes work |
 | [2.1.0](#210--2026-11-04) | 2026-11-04 | Browser extension for Chrome and Firefox |
 | [2.0.7](#207--2026-11-04) | 2026-11-04 | Resumable downloads, right-click menu |
 | [2.0.6](#206--2026-11-04) | 2026-11-04 | Cancel stops the whole process tree |
@@ -20,6 +21,50 @@ versioning follows [Semantic Versioning](https://semver.org/).
 | [1.1.0](#110--2025-09-27) | 2025-09-27 | Pre-rewrite release |
 | [0.2.0](#020--2025-09-20) | 2025-09-20 | Early prototype |
 | [0.1.0](#010--2025-09-13) | 2025-09-13 | First release |
+
+---
+
+## [2.1.1] — 2026-11-07
+
+Diagnosing "yt-dlp could not read this URL" and making the proxy setting do
+what it says.
+
+### What was actually happening
+
+YouTube was returning **"Sign in to confirm you're not a bot"** for every link —
+not a URL-recognition failure. Verified against both a Shorts URL and an
+ordinary `watch?v=` URL: all failed 3/3 times, and none of the alternative
+`player_client` values helped. The block cleared on its own a few minutes
+later, then returned; it is temporary IP/network-level throttling, not a bug
+in how Vidaro parses links. Browser cookies were also tested: they bypass the
+bot check but only expose storyboards, so they are not a usable workaround.
+
+### Fixed
+
+- **The real error was hidden.** The stderr reader discarded `WARNING:` lines
+  and rate-limited which lines it kept — a burst of progress lines could push
+  the final `ERROR:` out of `last_message`, leaving the UI with the generic
+  "yt-dlp could not read this URL". The reader now keeps a bounded tail of the
+  stream and explicitly prefers the last error / bot-check line. Because the
+  generic text did not match the transient markers, the retry loop also gave
+  up immediately.
+- **`proxyMode` "system" and "off" did nothing.** `proxy_url()` only handled
+  "manual", so yt-dlp silently inherited whatever the registry/environment
+  provided — switching VPN or proxy in Windows had no effect, and "off" did
+  not actually bypass a proxy. A new `ProxySetting` enum now resolves to
+  `Direct` (`--proxy ""`), `Url(...)`, or `Inherit`, and "system" reads the
+  Windows registry (or the usual environment variables on Unix). Applied
+  consistently to metadata fetches, downloads and the environment passed to
+  ffmpeg.
+- **Bot-check guidance** now mentions Settings → Proxy and that the block is
+  temporary; the retry delay grows (2 s, then 4 s) instead of retrying into
+  the same block after 1.2 s.
+- Failure messages include yt-dlp's exit code when it prints no error at all.
+
+### Added
+
+- Six regression tests: stderr tail selection (including a warning-only bot
+  check), the friendly error staying transient, and all proxy modes.
 
 ---
 

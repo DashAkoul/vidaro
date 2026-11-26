@@ -11,6 +11,17 @@ pub struct ToolPaths {
     pub ytdlp: PathBuf,
     pub ffmpeg: PathBuf,
     pub ffprobe: PathBuf,
+    /// JavaScript runtime for YouTube's `n`/`sig` challenge. Optional: Node,
+    /// Bun or QuickJS already on the PATH are just as good as a bundled Deno.
+    pub javascript_runtime: Option<JsRuntime>,
+}
+
+/// A JavaScript engine yt-dlp may use to solve YouTube's player challenge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsRuntime {
+    /// Name yt-dlp knows: `deno`, `node`, `bun` or `quickjs`.
+    pub name: String,
+    pub path: PathBuf,
 }
 
 impl ToolPaths {
@@ -75,5 +86,76 @@ pub fn resolve(app: &AppHandle, paths: &AppPaths) -> ToolPaths {
         ytdlp: find(app, paths, "yt-dlp"),
         ffmpeg: find(app, paths, "ffmpeg"),
         ffprobe: find(app, paths, "ffprobe"),
+        javascript_runtime: find_javascript_runtime(app, paths),
     }
+}
+
+impl ToolPaths {
+    /// The runtime yt-dlp should be told about, if any.
+    pub fn javascript(&self) -> Option<&JsRuntime> {
+        self.javascript_runtime.as_ref()
+    }
+}
+
+/// Locate a JavaScript runtime, preferring the managed one.
+///
+/// YouTube increasingly serves formats only when its player challenge can be
+/// evaluated, and yt-dlp refuses to invent a JS engine: without one it warns
+/// "n challenge solving failed" and returns no formats at all. A managed Deno
+/// is tried first, then whatever the machine already has on its PATH so we do
+/// not download 100 MB next to an existing Node install.
+fn find_javascript_runtime(app: &AppHandle, paths: &AppPaths) -> Option<JsRuntime> {
+    let managed = find(app, paths, "deno");
+    if managed.is_file() {
+        return Some(JsRuntime {
+            name: "deno".to_string(),
+            path: managed,
+        });
+    }
+
+    for name in ["deno", "node", "bun", "qjs"] {
+        if let Some(path) = which(&exe_name(name)) {
+            return Some(JsRuntime {
+                name: name.to_string(),
+                path,
+            });
+        }
+    }
+    None
+}
+
+/// Look a program up on `PATH` (plus the usual Windows install locations).
+fn which(program: &str) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).collect())
+        .unwrap_or_default();
+
+    #[cfg(windows)]
+    {
+        // A GUI app does not always inherit the shell's PATH.
+        if let Some(program_files) = std::env::var_os("ProgramFiles") {
+            candidates.push(PathBuf::from(program_files).join("nodejs"));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            candidates.push(PathBuf::from(&local).join("Programs").join("nodejs"));
+            candidates.push(PathBuf::from(local).join("deno").join("bin"));
+        }
+        if let Some(home) = std::env::var_os("USERPROFILE") {
+            candidates.push(PathBuf::from(home).join(".deno").join("bin"));
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            candidates.push(PathBuf::from(&home).join(".deno").join("bin"));
+            candidates.push(PathBuf::from(&home).join(".bun").join("bin"));
+            candidates.push(PathBuf::from(&home).join(".local").join("bin"));
+        }
+    }
+
+    candidates
+        .into_iter()
+        .map(|dir| dir.join(program))
+        .find(|candidate| candidate.is_file())
 }

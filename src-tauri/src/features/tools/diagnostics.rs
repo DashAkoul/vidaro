@@ -30,6 +30,8 @@ pub struct ConnectionReport {
     /// Days since the installed yt-dlp was released; YouTube breaks older
     /// builds long before anyone notices.
     pub ytdlp_age_days: Option<i64>,
+    /// JavaScript runtime yt-dlp will use, if one was found.
+    pub js_runtime: Option<String>,
 }
 
 impl ConnectionReport {
@@ -40,6 +42,7 @@ impl ConnectionReport {
             message,
             ytdlp_version: None,
             ytdlp_age_days: None,
+            js_runtime: None,
         }
     }
 }
@@ -53,12 +56,6 @@ fn kind_name(failure: Failure) -> &'static str {
         Failure::Tool => "tools",
         Failure::Unknown => "unknown",
     }
-}
-
-/// Days between a yt-dlp `YYYY.MM.DD` version and today.
-fn version_age_days(version: &str) -> Option<i64> {
-    let date = chrono::NaiveDate::parse_from_str(version.trim(), "%Y.%m.%d").ok()?;
-    Some((chrono::Utc::now().date_naive() - date).num_days())
 }
 
 pub async fn probe(app: &AppHandle, tools: &ToolManager) -> ConnectionReport {
@@ -114,7 +111,10 @@ pub async fn probe(app: &AppHandle, tools: &ToolManager) -> ConnectionReport {
     };
 
     let version = tools.ytdlp_version();
-    let age = version.as_deref().and_then(version_age_days);
+    let age = version.as_deref().and_then(crate::features::tools::ytdlp_age_days);
+    let js_runtime = paths
+        .javascript()
+        .map(|runtime| format!("{} ({})", runtime.name, runtime.path.display()));
 
     if success && stdout.trim().lines().any(|line| !line.trim().is_empty()) {
         return ConnectionReport {
@@ -123,6 +123,7 @@ pub async fn probe(app: &AppHandle, tools: &ToolManager) -> ConnectionReport {
             message: "YouTube answered and returned video information.".to_string(),
             ytdlp_version: version,
             ytdlp_age_days: age,
+            js_runtime,
         };
     }
 
@@ -139,7 +140,12 @@ pub async fn probe(app: &AppHandle, tools: &ToolManager) -> ConnectionReport {
     if failure == Failure::BotCheck {
         message.push_str(" Cookies from a signed-in browser are the most reliable fix.");
     }
-    if age.unwrap_or(0) > 90 {
+    if paths.javascript().is_none() {
+        message.push_str(
+            " No JavaScript runtime was found, so YouTube's player challenge cannot be solved; open Settings → Download tools → Install tools.",
+        );
+    }
+    if age.unwrap_or(0) > 30 {
         message.push_str(&format!(
             " The installed yt-dlp is {} days old; updating it often clears YouTube errors.",
             age.unwrap_or(0)
@@ -152,21 +158,13 @@ pub async fn probe(app: &AppHandle, tools: &ToolManager) -> ConnectionReport {
         message,
         ytdlp_version: version,
         ytdlp_age_days: age,
+        js_runtime,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parses_version_age() {
-        // A fixed far-future date cannot be compared to "today" reliably, but
-        // the parser must at least accept the release format and reject noise.
-        assert!(version_age_days("2026.01.01").is_some());
-        assert!(version_age_days("nightly").is_none());
-        assert!(version_age_days("").is_none());
-    }
 
     #[test]
     fn reports_the_bot_check_as_its_own_kind() {

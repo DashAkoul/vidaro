@@ -27,8 +27,23 @@ pub struct ToolStatus {
     pub ffmpeg_found: bool,
     pub ytdlp_path: String,
     pub ffmpeg_path: String,
+    /// JavaScript runtime yt-dlp will use for YouTube's player challenge.
+    pub js_runtime: Option<String>,
     pub platform: String,
 }
+
+/// Days since a yt-dlp `YYYY.MM.DD` build was released.
+///
+/// YouTube changes its player often enough that a build older than a couple of
+/// months stops working: 2026.10.26 could not solve the `n` challenge here
+/// while 2026.11.23 could, with everything else identical.
+pub fn ytdlp_age_days(version: &str) -> Option<i64> {
+    let date = chrono::NaiveDate::parse_from_str(version.trim(), "%Y.%m.%d").ok()?;
+    Some((chrono::Utc::now().date_naive() - date).num_days())
+}
+
+/// Update itself once the installed yt-dlp is older than this.
+pub const YTDLP_MAX_AGE_DAYS: i64 = 30;
 
 /// Owns binary locations and caches the (expensive) yt-dlp version probe.
 ///
@@ -144,6 +159,9 @@ impl ToolManager {
             ffmpeg_found,
             ytdlp_path: p.ytdlp.to_string_lossy().to_string(),
             ffmpeg_path: p.ffmpeg.to_string_lossy().to_string(),
+            js_runtime: p
+                .javascript()
+                .map(|runtime| format!("{} ({})", runtime.name, runtime.path.display())),
             platform: std::env::consts::OS.to_string(),
         }
     }
@@ -163,6 +181,10 @@ impl ToolManager {
         if !p.ffmpeg.is_file() || !p.ffprobe.is_file() {
             installer::install_ffmpeg(app, &self.inner.app_paths.bin_dir).await?;
         }
+        // No JavaScript runtime means no formats, whatever else is installed.
+        if p.javascript().is_none() {
+            installer::install_deno(app, &self.inner.app_paths.bin_dir).await?;
+        }
 
         self.refresh(app);
         let status = self.status();
@@ -172,6 +194,29 @@ impl ToolManager {
             ));
         }
         Ok(status)
+    }
+
+    /// Install a newer yt-dlp when the current one is old enough to be a risk.
+    ///
+    /// Returns the new version when an update happened. Failures are reported
+    /// to the caller but are never fatal: an offline start must still work.
+    pub async fn update_ytdlp_if_stale(&self, app: &AppHandle) -> Option<String> {
+        let version = self.ytdlp_version()?;
+        let age = ytdlp_age_days(&version)?;
+        if age < YTDLP_MAX_AGE_DAYS || !self.paths().ytdlp.is_file() {
+            return None;
+        }
+        match self.update_ytdlp(app).await {
+            Ok(version) => Some(version),
+            Err(error) => {
+                // Never fatal: the app keeps working with the build it has.
+                crate::core::logging::log_startup(
+                    "tools",
+                    &format!("automatic yt-dlp update failed: {error}"),
+                );
+                None
+            }
+        }
     }
 
     pub async fn update_ytdlp(&self, app: &AppHandle) -> AppResult<String> {
@@ -200,6 +245,43 @@ impl Plugin for ToolsPlugin {
                 let _ = mgr.ytdlp_version();
             }
         });
+
+        // A yt-dlp that is a few weeks old silently stops working when YouTube
+        // changes its player, so stale builds are refreshed in the background
+        // instead of waiting for the user to notice the Update button.
+        let app = ctx.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let Some(mgr) = app.try_state::<ToolManager>() else {
+                return;
+            };
+            let manager = mgr.inner().clone();
+            if let Some(version) = manager.update_ytdlp_if_stale(&app).await {
+                crate::core::logging::log_startup(
+                    "tools",
+                    &format!("yt-dlp updated automatically to {version}"),
+                );
+            }
+        });
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_release_dates() {
+        assert!(ytdlp_age_days("2026.01.01").is_some());
+        assert!(ytdlp_age_days("nightly").is_none());
+        assert!(ytdlp_age_days("").is_none());
+    }
+
+    /// The build that could not solve YouTube's `n` challenge was 28 days old;
+    /// the one that could was 3 days old. Anything past a month is refreshed.
+    #[test]
+    fn staleness_threshold_is_a_month() {
+        assert!(YTDLP_MAX_AGE_DAYS <= 45);
+        assert!(YTDLP_MAX_AGE_DAYS >= 14);
     }
 }

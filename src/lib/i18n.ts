@@ -112,6 +112,8 @@ const en = {
   missing: "Missing",
   installed: "Ready",
   updateYtdlp: "Update yt-dlp",
+  jsRuntime: "JavaScript runtime",
+  jsRuntimeMissing: "not found",
   updating: "Updating…",
   updateOutput: "Update output",
   openToolsFolder: "Open tools folder",
@@ -136,7 +138,7 @@ const en = {
   cookiesHint:
     "YouTube blocks downloaders with a “confirm you’re not a bot” check. Sending cookies from a browser where you are signed in is the most reliable fix. Nothing is uploaded: the cookies go straight to yt-dlp.",
   cookiesBrowserHint:
-    "If reading the browser fails (Chrome may be locked or encrypted by Windows), export cookies.txt and pick it instead.",
+    "Firefox works most reliably. Chrome cookies are often encrypted by Windows and fail with a DPAPI error; in that case export a cookies.txt and pick it instead.",
 
   reliability: "Reliability",
   autoRetry: "Retry failed downloads automatically",
@@ -301,6 +303,8 @@ const fa: Record<keyof typeof en, string> = {
   missing: "نصب نیست",
   installed: "آماده",
   updateYtdlp: "به‌روزرسانی yt-dlp",
+  jsRuntime: "موتور جاوااسکریپت",
+  jsRuntimeMissing: "پیدا نشد",
   updating: "در حال به‌روزرسانی…",
   updateOutput: "خروجی به‌روزرسانی",
   openToolsFolder: "پوشه ابزارها",
@@ -325,7 +329,7 @@ const fa: Record<keyof typeof en, string> = {
   cookiesHint:
     "یوتیوب دانلودرها را با پیام «تأیید کنید ربات نیستید» مسدود می‌کند. ارسال کوکی از مرورگری که در آن وارد حساب شده‌اید مطمئن‌ترین راه رفع آن است. هیچ داده‌ای جایی ارسال نمی‌شود؛ کوکی‌ها فقط به yt-dlp داده می‌شوند.",
   cookiesBrowserHint:
-    "اگر خواندن کوکی مرورگر شکست خورد (کروم قفل یا با ویندوز رمزنگاری شده باشد)، فایل cookies.txt را خروجی بگیرید و انتخاب کنید.",
+    "فایرفاکس مطمئن‌ترین گزینه است. کوکی‌های کروم معمولاً با ویندوز رمزنگاری شده‌اند و خطای DPAPI می‌دهند؛ در آن صورت فایل cookies.txt را خروجی بگیرید و انتخاب کنید.",
 
   reliability: "پایداری",
   autoRetry: "تلاش مجدد خودکار برای دانلودهای ناموفق",

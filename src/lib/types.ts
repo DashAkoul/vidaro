@@ -108,6 +108,8 @@ export interface ToolStatus {
   ffmpegFound: boolean;
   ytdlpPath: string;
   ffmpegPath: string;
+  /** JavaScript runtime used for YouTube's player challenge, if any. */
+  jsRuntime: string | null;
   platform: string;
 }
 
@@ -158,4 +160,5 @@ export interface ConnectionReport {
   message: string;
   ytdlpVersion: string | null;
   ytdlpAgeDays: number | null;
+  jsRuntime: string | null;
 }

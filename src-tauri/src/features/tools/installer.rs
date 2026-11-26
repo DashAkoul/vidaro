@@ -35,6 +35,9 @@ fn report(app: &AppHandle, tool: &str, stage: &str, received: u64, total: u64) {
 
 const USER_AGENT: &str = "Vidaro/2.0 (+https://github.com/DashAkoul/vidaro)";
 
+/// Attempts per helper download; each one resumes where the last stopped.
+const MAX_ATTEMPTS: u32 = 5;
+
 fn ytdlp_url() -> &'static str {
     if cfg!(windows) {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
@@ -54,23 +57,136 @@ async fn download(app: &AppHandle, tool: &str, url: &str, dest: &Path) -> AppRes
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .build()?;
-    let response = client.get(url).send().await?;
+    let tmp = dest.with_extension("download");
 
-    if !response.status().is_success() {
-        return Err(AppError::Network(format!(
-            "{tool}: HTTP {} from {url}",
-            response.status()
-        )));
+    // A 23 MB helper download over a flaky link used to leave a `.download`
+    // file and a failed install, which looked like "the app is broken again".
+    // Each attempt resumes from the bytes already on disk.
+    let mut last_error: Option<AppError> = None;
+    for attempt in 0..MAX_ATTEMPTS {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_secs(2 * u64::from(attempt))).await;
+        }
+        match download_once(app, &client, tool, url, &tmp).await {
+            Ok(received) => match replace_binary(&tmp, dest) {
+                Ok(()) => {
+                    report(app, tool, "done", received, received);
+                    return Ok(());
+                }
+                // Windows refuses to replace a file that a running process
+                // still has open (the version probe, or a download in flight),
+                // so the finished file is kept and the swap retried shortly.
+                Err(error) => {
+                    crate::core::logging::log_startup(
+                        "tools",
+                        &format!("{tool}: could not replace the binary yet: {error}"),
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    last_error = Some(error);
+                    continue;
+                }
+            },
+            Err(error) => {
+                crate::core::logging::log_startup(
+                    "tools",
+                    &format!("{tool} download attempt {} failed: {error}", attempt + 1),
+                );
+                last_error = Some(error);
+            }
+        }
     }
 
-    let total = response.content_length().unwrap_or(0);
-    let tmp = dest.with_extension("download");
-    let mut file = std::fs::File::create(&tmp)?;
+    Err(last_error.unwrap_or_else(|| AppError::Network(format!("{tool}: download failed"))))
+}
 
-    let mut received: u64 = 0;
-    let mut last_report: u64 = 0;
+/// Move a finished download into place, retrying briefly on Windows.
+///
+/// A helper binary may still be running (the version probe or a download in
+/// flight), and Windows then refuses both the delete and the rename. Retrying
+/// is enough: the handle is released within a second or two.
+fn replace_binary(tmp: &Path, dest: &Path) -> AppResult<()> {
+    let mut last: Option<String> = None;
+    for _ in 0..5 {
+        if dest.exists() {
+            if let Err(error) = std::fs::remove_file(dest) {
+                last = Some(error.to_string());
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                continue;
+            }
+        }
+        match std::fs::rename(tmp, dest) {
+            Ok(()) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        dest,
+                        std::fs::Permissions::from_mode(0o755),
+                    );
+                }
+                return Ok(());
+            }
+            Err(error) => {
+                last = Some(error.to_string());
+                std::thread::sleep(std::time::Duration::from_millis(600));
+            }
+        }
+    }
+    Err(AppError::Tool(format!(
+        "could not replace {}: {}",
+        dest.display(),
+        last.unwrap_or_else(|| "unknown error".into())
+    )))
+}
+
+/// One attempt, continuing from whatever the `.download` file already holds.
+///
+/// Returns the number of bytes on disk when the file is complete.
+async fn download_once(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    tool: &str,
+    url: &str,
+    tmp: &Path,
+) -> AppResult<u64> {
+    let mut received: u64 = std::fs::metadata(tmp).map(|m| m.len()).unwrap_or(0);
+
+    let mut request = client.get(url);
+    if received > 0 {
+        request = request.header(reqwest::header::RANGE, format!("bytes={received}-"));
+    }
+    let response = request.send().await?;
+    let status = response.status();
+
+    // A `.download` that is already the full size makes a range request
+    // unsatisfiable; that is success, not failure.
+    if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && received > 0 {
+        return Ok(received);
+    }
+
+    // 206 means the server honoured the range; anything else makes us restart.
+    let resuming = status == reqwest::StatusCode::PARTIAL_CONTENT;
+    if !resuming {
+        if !status.is_success() {
+            return Err(AppError::Network(format!(
+                "{tool}: HTTP {status} from {url}"
+            )));
+        }
+        received = 0;
+    }
+
+    let remaining = response.content_length().unwrap_or(0);
+    let total = if resuming { received + remaining } else { remaining };
+
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(resuming)
+        .truncate(!resuming)
+        .open(tmp)?;
+
+    let mut last_report = received;
     let mut stream = response.bytes_stream();
-
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
         file.write_all(&chunk)?;
@@ -80,24 +196,94 @@ async fn download(app: &AppHandle, tool: &str, url: &str, dest: &Path) -> AppRes
             report(app, tool, "download", received, total);
         }
     }
-
     file.flush()?;
     drop(file);
 
-    // Atomic replace so a half-written binary is never picked up.
-    if dest.exists() {
-        let _ = std::fs::remove_file(dest);
+    if total > 0 && received < total {
+        return Err(AppError::Network(format!(
+            "{tool}: connection closed at {received} of {total} bytes"
+        )));
     }
-    std::fs::rename(&tmp, dest)?;
+    Ok(received)
+}
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(dest, std::fs::Permissions::from_mode(0o755));
+/// Deno release archive for this platform.
+///
+/// Deno is yt-dlp's recommended JavaScript runtime: YouTube's player challenge
+/// (`n`/`sig`) is JavaScript, and a runtime is what turns "No video formats
+/// found" back into a real format list.
+fn deno_archive_url() -> String {
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "aarch64",
+        _ => "x86_64",
+    };
+    let target = if cfg!(windows) {
+        format!("{arch}-pc-windows-msvc")
+    } else if cfg!(target_os = "macos") {
+        format!("{arch}-apple-darwin")
+    } else {
+        format!("{arch}-unknown-linux-gnu")
+    };
+    format!("https://github.com/denoland/deno/releases/latest/download/deno-{target}.zip")
+}
+
+/// Download Deno into the managed `bin` directory.
+pub async fn install_deno(app: &AppHandle, bin_dir: &Path) -> AppResult<PathBuf> {
+    let archive = bin_dir.join("deno-archive.zip");
+    let dest = bin_dir.join(exe_name("deno"));
+
+    report(app, "deno", "download", 0, 0);
+    download(app, "deno", &deno_archive_url(), &archive).await?;
+    report(app, "deno", "extract", 0, 0);
+
+    let archive_owned = archive.clone();
+    let dest_owned = dest.clone();
+    tauri::async_runtime::spawn_blocking(move || -> AppResult<()> {
+        extract_zip_member(&archive_owned, &dest_owned, &["deno.exe", "deno"])?;
+        let _ = std::fs::remove_file(&archive_owned);
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Tool(format!("extraction task failed: {e}")))??;
+
+    report(app, "deno", "done", 0, 0);
+    Ok(dest)
+}
+
+/// Pull one named file out of a zip, wherever it sits inside the archive.
+fn extract_zip_member(archive: &Path, dest: &Path, names: &[&str]) -> AppResult<()> {
+    let file = std::fs::File::open(archive)?;
+    let mut zip = zip::ZipArchive::new(file)?;
+
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i)?;
+        if entry.is_dir() {
+            continue;
+        }
+        let base = entry
+            .name()
+            .rsplit('/')
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if !names.iter().any(|name| base == name.to_ascii_lowercase()) {
+            continue;
+        }
+
+        let mut buffer = Vec::with_capacity(entry.size() as usize);
+        entry.read_to_end(&mut buffer)?;
+        std::fs::write(dest, &buffer)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(dest, std::fs::Permissions::from_mode(0o755));
+        }
+        return Ok(());
     }
 
-    report(app, tool, "done", received, total);
-    Ok(())
+    Err(AppError::Tool(
+        "the Deno archive did not contain the runtime".into(),
+    ))
 }
 
 pub async fn install_ytdlp(app: &AppHandle, bin_dir: &Path) -> AppResult<PathBuf> {

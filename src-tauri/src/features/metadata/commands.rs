@@ -135,6 +135,13 @@ async fn fetch_once(
     // A signed-in session is the only dependable way past the bot check.
     args.extend(crate::features::ytdlp::cookie_args(&settings));
 
+    // The player challenge is JavaScript; without a runtime there is no format
+    // list to show the user.
+    if let Some(runtime) = tools.paths().javascript() {
+        args.push("--js-runtimes".into());
+        args.push(format!("{}:{}", runtime.name, runtime.path.to_string_lossy()));
+    }
+
     // Each retry asks YouTube a different way instead of repeating the request
     // that just failed.
     if let Some(client) = crate::features::ytdlp::alternate_client(u32::from(attempt.saturating_sub(1))) {

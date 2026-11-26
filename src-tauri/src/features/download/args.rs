@@ -110,6 +110,13 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths, result_file: &
     // A signed-in session is the only dependable way past YouTube's bot check.
     args.extend(crate::features::ytdlp::cookie_args(settings));
 
+    // YouTube's player challenge (`n`/`sig`) is JavaScript; without a runtime
+    // yt-dlp drops every format and reports "No video formats found".
+    if let Some(runtime) = tools.javascript() {
+        args.push("--js-runtimes".into());
+        args.push(format!("{}:{}", runtime.name, runtime.path.to_string_lossy()));
+    }
+
     // A retry rotates the player client: YouTube throttles one client at a
     // time, and a different one often succeeds immediately.
     if let Some(client) = crate::features::ytdlp::alternate_client(item.attempts) {
@@ -172,6 +179,7 @@ mod tests {
             ytdlp: "/tmp/yt-dlp".into(),
             ffmpeg: "/tmp/ffmpeg".into(),
             ffprobe: "/tmp/ffprobe".into(),
+            javascript_runtime: None,
         }
     }
 
@@ -252,6 +260,27 @@ mod tests {
         );
         let template = args.iter().position(|a| a == "-o").map(|i| args[i + 1].clone());
         assert!(template.unwrap().contains("003 - %(title)s.%(ext)s"));
+    }
+
+    /// Without this flag yt-dlp cannot solve YouTube's player challenge.
+    #[test]
+    fn javascript_runtime_is_passed_to_ytdlp() {
+        let mut tool_paths = tools();
+        tool_paths.javascript_runtime = Some(crate::features::tools::paths::JsRuntime {
+            name: "deno".into(),
+            path: "/tmp/deno".into(),
+        });
+        let args = build(
+            &sample(false, "best"),
+            &Settings::default(),
+            &tool_paths,
+            Path::new("/tmp/r"),
+        );
+        let position = args
+            .iter()
+            .position(|a| a == "--js-runtimes")
+            .expect("the JS runtime must reach yt-dlp");
+        assert_eq!(args[position + 1], "deno:/tmp/deno");
     }
 
     /// The final path must never be inferred from log text again.

@@ -305,6 +305,13 @@ export default function Settings() {
         </div>
 
         <div className="settings-row">
+          <span>{t("jsRuntime")}</span>
+          <span className="muted" dir="ltr" style={{ fontSize: 12 }}>
+            {tools?.jsRuntime ?? t("jsRuntimeMissing")}
+          </span>
+        </div>
+
+        <div className="settings-row">
           <span>ffmpeg</span>
           <span className="muted">{tools?.ffmpegFound ? t("installed") : t("missing")}</span>
           {!tools?.ready && (

@@ -9,6 +9,7 @@ import {
   exportData,
   importBrowserCookies,
   importData,
+  openBrowserLogin,
   saveCookiesText,
   sessionStatus,
   onToolsProgress,
@@ -18,6 +19,16 @@ import {
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import type { ConnectionReport, SessionStatus, ToolsProgress } from "../lib/types";
+
+/// Chromium-based browsers encrypt their cookie store with an app-bound key.
+const APP_BOUND_BROWSERS = [
+  "chrome",
+  "chromium",
+  "edge",
+  "brave",
+  "vivaldi",
+  "opera",
+];
 
 export default function Settings() {
   const { t } = useI18n();
@@ -538,6 +549,22 @@ export default function Settings() {
             {t("cookiesBrowserHint")}
           </div>
         )}
+
+        {APP_BOUND_BROWSERS.includes(settings.cookiesBrowser) && (
+          <div className="muted small" style={{ marginInlineStart: 24, color: "var(--warn, #b45309)" }}>
+            {t("appBoundWarn")}
+          </div>
+        )}
+
+        <div className="settings-row">
+          <span>{t("signInBrowser")}</span>
+          <button
+            className="btn secondary"
+            onClick={() => void openBrowserLogin(settings.cookiesBrowser)}
+          >
+            {settings.cookiesBrowser}
+          </button>
+        </div>
 
         <div className="settings-row">
           <span>{t("savedSession")}</span>

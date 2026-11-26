@@ -151,6 +151,7 @@ pub fn run() {
             features::settings::import_data,
             features::settings::session::import_browser_cookies,
             features::settings::session::save_cookies_text,
+            features::settings::session::open_browser_login,
             features::settings::session_status,
             // history
             features::history::commands::get_history,

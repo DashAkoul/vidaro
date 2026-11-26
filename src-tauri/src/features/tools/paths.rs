@@ -132,7 +132,7 @@ fn find_javascript_runtime(app: &AppHandle, paths: &AppPaths) -> Option<JsRuntim
 }
 
 /// Look a program up on `PATH` (plus the usual Windows install locations).
-fn which(program: &str) -> Option<PathBuf> {
+pub fn which(program: &str) -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|paths| std::env::split_paths(&paths).collect())
         .unwrap_or_default();

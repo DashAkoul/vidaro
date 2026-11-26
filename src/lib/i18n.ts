@@ -138,6 +138,9 @@ const en = {
   chooseCookies: "Choose file",
   savedSession: "Saved session",
   importSession: "Import session from browser",
+  signInBrowser: "Sign in to YouTube",
+  appBoundWarn:
+    "Windows encrypts this browser's cookies with a key only the browser can use, so Vidaro cannot read them (yt-dlp cannot either). Sign in with Firefox instead, or paste a cookies.txt export.",
   pasteCookies: "Paste cookies.txt",
   pasteCookiesHint:
     "Works with any browser and any machine: export youtube.com cookies with a browser extension, open the file in a text editor and paste its contents here.",
@@ -343,6 +346,9 @@ const fa: Record<keyof typeof en, string> = {
   chooseCookies: "انتخاب فایل",
   savedSession: "نشست ذخیره‌شده",
   importSession: "ورود نشست از مرورگر",
+  signInBrowser: "ورود به یوتیوب",
+  appBoundWarn:
+    "ویندوز کوکی‌های این مرورگر را با کلیدی رمز می‌کند که فقط خودِ مرورگر می‌تواند بخواند؛ پس Vidaro (و yt-dlp) به آن دسترسی ندارد. با فایرفاکس وارد شو، یا فایل cookies.txt را بچسبان.",
   pasteCookies: "چسباندن cookies.txt",
   pasteCookiesHint:
     "با هر مرورگر و هر سیستمی کار می‌کند: کوکی‌های youtube.com را با یک افزونه خروجی بگیر، فایل را در ویرایشگر متن باز کن و محتوایش را اینجا بچسبان.",

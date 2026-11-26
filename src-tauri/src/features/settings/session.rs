@@ -31,6 +31,67 @@ const AUTH_COOKIES: [&str; 8] = [
     "__Secure-1PAPISID",
 ];
 
+/// Browsers that encrypt their cookie database with Windows' app-bound key.
+/// Chrome and Edge do this from version 127, which leaves the cookies readable
+/// by the browser's own extensions and by nothing else — no external tool,
+/// yt-dlp included, can decrypt them.
+fn is_app_bound(browser: &str) -> bool {
+    matches!(
+        browser,
+        "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "opera"
+    )
+}
+
+fn browser_exe(browser: &str) -> Option<PathBuf> {
+    let candidates: &[&str] = match browser {
+        "firefox" => &[
+            r"C:\Program Files\Mozilla Firefox\firefox.exe",
+            r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
+        ],
+        "edge" => &[
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ],
+        "chrome" | "chromium" => &[
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ],
+        "brave" => &[
+            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        ],
+        "vivaldi" => &[r"C:\Program Files\Vivaldi\Application\vivaldi.exe"],
+        _ => &[],
+    };
+
+    candidates
+        .iter()
+        .map(PathBuf::from)
+        .find(|path| path.is_file())
+        .or_else(|| crate::features::tools::paths::which(&format!("{browser}.exe")))
+}
+
+/// Open youtube.com in the chosen browser so the user can sign in there.
+///
+/// The sign-in has to happen somewhere the cookies can be read back: Firefox
+/// keeps them in a plain SQLite file, while every Chromium-based browser
+/// encrypts them with a key only the browser itself can unwrap. Opening the
+/// browser at the right page turns a confusing dead end into one click.
+#[tauri::command]
+pub fn open_browser_login(browser: String) -> AppResult<()> {
+    let exe = browser_exe(&browser).ok_or_else(|| {
+        AppError::Tool(format!(
+            "{browser} was not found on this computer. Install it, or paste a cookies.txt file instead."
+        ))
+    })?;
+
+    std::process::Command::new(exe)
+        .arg("https://www.youtube.com")
+        .spawn()
+        .map_err(|e| AppError::Tool(format!("could not start {browser}: {e}")))?;
+
+    Ok(())
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStatus {
@@ -169,7 +230,12 @@ pub async fn import_browser_cookies(
     let imported = count_auth_cookies(&path);
     if imported == 0 {
         return Err(AppError::Invalid(format!(
-            "no signed-in YouTube cookies were found in {browser}. Keep {browser} open and logged in to youtube.com, then import again — or export cookies.txt with a browser extension and choose the file instead."
+            "no signed-in YouTube cookies were found in {browser}. {}",
+            if is_app_bound(&browser) {
+                "This browser encrypts its cookies with a Windows key (app-bound encryption) that only the browser itself can unwrap, so nothing outside it can read them — yt-dlp included. Sign in with Firefox and import from there, or export a cookies.txt with a browser extension and paste it below."
+            } else {
+                "Sign in to youtube.com in this browser, then import again."
+            }
         )));
     }
 

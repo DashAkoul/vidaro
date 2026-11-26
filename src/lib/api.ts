@@ -78,6 +78,8 @@ export const setAutostart = (enabled: boolean) =>
 export const sessionStatus = () => invoke<SessionStatus>("session_status");
 export const importBrowserCookies = (browser: string) =>
   invoke<SessionStatus>("import_browser_cookies", { browser });
+export const openBrowserLogin = (browser: string) =>
+  invoke<void>("open_browser_login", { browser });
 export const saveCookiesText = (text: string) =>
   invoke<SessionStatus>("save_cookies_text", { text });
 

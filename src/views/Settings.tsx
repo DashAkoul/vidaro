@@ -495,25 +495,23 @@ export default function Settings() {
           </div>
         </div>
 
-        {settings.cookiesMode === "browser" && (
-          <div className="settings-row">
-            <span>{t("cookiesBrowserPick")}</span>
-            <select
-              value={settings.cookiesBrowser}
-              onChange={(event) =>
-                updateSettings({ cookiesBrowser: event.target.value })
-              }
-            >
-              {["chrome", "chromium", "edge", "brave", "vivaldi", "opera", "firefox", "safari"].map(
-                (browser) => (
-                  <option key={browser} value={browser}>
-                    {browser}
-                  </option>
-                ),
-              )}
-            </select>
-          </div>
-        )}
+        <div className="settings-row">
+          <span>{t("cookiesBrowserPick")}</span>
+          <select
+            value={settings.cookiesBrowser}
+            onChange={(event) =>
+              updateSettings({ cookiesBrowser: event.target.value })
+            }
+          >
+            {["chrome", "chromium", "edge", "brave", "vivaldi", "opera", "firefox", "safari"].map(
+              (browser) => (
+                <option key={browser} value={browser}>
+                  {browser}
+                </option>
+              ),
+            )}
+          </select>
+        </div>
 
         {settings.cookiesMode === "file" && (
           <div className="settings-row">

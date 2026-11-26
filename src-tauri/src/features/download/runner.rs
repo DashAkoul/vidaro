@@ -1,5 +1,6 @@
 //! Executing a single queue item with yt-dlp.
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -85,7 +86,11 @@ pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
     }
 
     let item = inner.snapshot();
-    let cmd_args = args::build(&item, &settings, &tool_paths);
+    let result_file = result_file_path(&app, &item.id);
+    // A stale file from an earlier attempt would be read as this attempt's
+    // output, so it is removed before yt-dlp starts.
+    let _ = std::fs::remove_file(&result_file);
+    let cmd_args = args::build(&item, &settings, &tool_paths, &result_file);
 
     let mut command = crate::core::process::async_command(&tool_paths.ytdlp);
     command
@@ -174,7 +179,7 @@ pub async fn run(app: AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
     }
 
     if success {
-        finish_ok(&app, &queue, &inner, &state).await;
+        finish_ok(&app, &queue, &inner, &state, &result_file).await;
     } else {
         let message = {
             let st = state.lock().await;
@@ -276,6 +281,7 @@ async fn finish_ok(
     queue: &Arc<Queue>,
     inner: &Arc<ItemInner>,
     state: &Arc<Mutex<ParseState>>,
+    result_file: &Path,
 ) {
     // The user may have removed the item while it was finishing; emitting now
     // would make the UI add it back.
@@ -283,9 +289,16 @@ async fn finish_ok(
         return;
     }
 
+    // `--print-to-file after_move:filepath` is the authoritative answer: it is
+    // the path yt-dlp actually wrote, after a merge rename, in UTF-8. The
+    // parsed `Destination:` line stays as a fallback for older yt-dlp builds
+    // that ignore the flag.
+    let reported = read_reported_path(result_file).await;
+    let _ = std::fs::remove_file(result_file);
+
     let output_path = {
         let st = state.lock().await;
-        st.output_path.clone()
+        reported.or_else(|| st.output_path.clone())
     };
 
     let snapshot = inner.with_item(|item| {
@@ -306,6 +319,47 @@ async fn finish_ok(
     record_history(app, &snapshot);
     events::emit_empty(app, events::QUEUE_CHANGED);
     events::emit_empty(app, events::HISTORY_CHANGED);
+}
+
+/// Where yt-dlp writes the final path of this attempt.
+///
+/// One file per item, inside the app data directory, so a cancelled or
+/// half-finished attempt cannot collide with another item's report.
+fn result_file_path(app: &AppHandle, item_id: &str) -> PathBuf {
+    let data_dir = app
+        .try_state::<crate::core::paths::AppPaths>()
+        .map(|paths| paths.data_dir.clone())
+        .unwrap_or_else(std::env::temp_dir);
+    let dir = data_dir.join("run");
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join(format!("{item_id}.path"))
+}
+
+/// Read `--print-to-file` output.
+///
+/// yt-dlp appends one line per printed value and terminates it with the
+/// platform line ending, so the last non-empty line is the final path. Reading
+/// raw bytes and decoding explicitly keeps non-ASCII titles intact even if the
+/// helper ignored `PYTHONIOENCODING`.
+async fn read_reported_path(path: &Path) -> Option<String> {
+    let bytes = tokio::fs::read(path).await.ok()?;
+    let text = String::from_utf8_lossy(&bytes);
+    select_reported_path(&text)
+}
+
+/// Last non-empty line of a `--print-to-file` report, without its BOM/CRLF.
+fn select_reported_path(text: &str) -> Option<String> {
+    let text = text.trim_start_matches('\u{feff}');
+    let line = text
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| !line.is_empty())?;
+    if line.is_empty() {
+        None
+    } else {
+        Some(line.to_string())
+    }
 }
 
 fn fail(app: &AppHandle, queue: &Arc<Queue>, inner: &Arc<ItemInner>, message: &str) {
@@ -361,4 +415,27 @@ fn record_history(app: &AppHandle, item: &Item) {
             batch_name: item.batch_name.clone(),
         },
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_reported_path;
+
+    /// The report is UTF-8 with a Windows line ending; a Persian title must
+    /// survive exactly as yt-dlp wrote it.
+    #[test]
+    fn reads_the_last_printed_path() {
+        let text = "C:\\out\\old.mp4\r\nC:\\out\\وقتی همسرت ADHD داره.mp4\r\n";
+        assert_eq!(
+            select_reported_path(text).as_deref(),
+            Some("C:\\out\\وقتی همسرت ADHD داره.mp4")
+        );
+    }
+
+    #[test]
+    fn ignores_bom_and_blank_lines() {
+        assert_eq!(select_reported_path("\u{feff}/tmp/a.mp4\n\n").as_deref(), Some("/tmp/a.mp4"));
+        assert_eq!(select_reported_path("   \n \n"), None);
+        assert_eq!(select_reported_path(""), None);
+    }
 }

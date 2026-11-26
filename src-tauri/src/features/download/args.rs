@@ -10,7 +10,12 @@ use crate::features::tools::paths::ToolPaths;
 /// path at 260 characters on older builds, so leave headroom.
 const MAX_FILENAME_LEN: u32 = 150;
 
-pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths) -> Vec<String> {
+/// Build the yt-dlp argv for one item.
+///
+/// `result_file` receives the final path through `--print-to-file`. Parsing the
+/// path out of the human-readable log line was the old approach and it broke
+/// for every non-ASCII title on Windows (see `core::process::force_utf8`).
+pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths, result_file: &Path) -> Vec<String> {
     let mut args: Vec<String> = [
         "--newline",
         "--no-playlist",
@@ -107,6 +112,12 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths) -> Vec<String>
     args.push("-o".into());
     args.push(template.to_string_lossy().to_string());
 
+    // Authoritative final path (after any merge). Written to a file in UTF-8,
+    // so it is immune to console code pages.
+    args.push("--print-to-file".into());
+    args.push("after_move:filepath".into());
+    args.push(result_file.to_string_lossy().to_string());
+
     args.push(item.url.clone());
     args
 }
@@ -154,7 +165,12 @@ mod tests {
 
     #[test]
     fn video_quality_has_fallback() {
-        let args = build(&sample(false, "1080"), &Settings::default(), &tools());
+        let args = build(
+            &sample(false, "1080"),
+            &Settings::default(),
+            &tools(),
+            Path::new("/tmp/result"),
+        );
         let selector = args.iter().position(|a| a == "-f").map(|i| args[i + 1].clone());
         assert_eq!(
             selector.as_deref(),
@@ -164,15 +180,42 @@ mod tests {
 
     #[test]
     fn audio_prefers_best_audio() {
-        let args = build(&sample(true, "best"), &Settings::default(), &tools());
+        let args = build(
+            &sample(true, "best"),
+            &Settings::default(),
+            &tools(),
+            Path::new("/tmp/result"),
+        );
         assert!(args.iter().any(|a| a == "-x"));
         assert!(args.windows(2).any(|w| w[0] == "--audio-format" && w[1] == "mp3"));
     }
 
     #[test]
     fn output_template_keeps_prefix() {
-        let args = build(&sample(false, "best"), &Settings::default(), &tools());
+        let args = build(
+            &sample(false, "best"),
+            &Settings::default(),
+            &tools(),
+            Path::new("/tmp/result"),
+        );
         let template = args.iter().position(|a| a == "-o").map(|i| args[i + 1].clone());
         assert!(template.unwrap().contains("003 - %(title)s.%(ext)s"));
+    }
+
+    /// The final path must never be inferred from log text again.
+    #[test]
+    fn result_path_is_requested_from_ytdlp() {
+        let args = build(
+            &sample(false, "best"),
+            &Settings::default(),
+            &tools(),
+            Path::new("/tmp/result.txt"),
+        );
+        let position = args
+            .iter()
+            .position(|a| a == "--print-to-file")
+            .expect("--print-to-file must be present");
+        assert_eq!(args[position + 1], "after_move:filepath");
+        assert_eq!(args[position + 2], "/tmp/result.txt");
     }
 }

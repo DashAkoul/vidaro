@@ -137,6 +137,7 @@ pub fn run() {
             features::download::commands::remove_item,
             features::download::commands::pause_all,
             features::download::commands::resume_all,
+            features::download::commands::retry_failed,
             features::download::commands::clear_finished,
             features::download::commands::open_download_folder,
             features::download::commands::update_item_schedule,

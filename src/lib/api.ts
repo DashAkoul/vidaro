@@ -48,6 +48,7 @@ export const retryItem = (id: string) => invoke<void>("retry_item", { id });
 export const removeItem = (id: string) => invoke<void>("remove_item", { id });
 export const pauseAll = () => invoke<void>("pause_all");
 export const resumeAll = () => invoke<void>("resume_all");
+export const retryFailed = () => invoke<number>("retry_failed");
 export const clearFinished = () => invoke<void>("clear_finished");
 export const openDownloadFolder = (id: string) =>
   invoke<void>("open_download_folder", { id });

@@ -149,6 +149,7 @@ const en = {
   testingConnection: "Testing…",
   testOk: "Connection OK",
   statusRetrying: "Retrying",
+  retryFailed: "Retry failed",
 
   scheduler: "Scheduler",
   schedulerEnabled: "Enable global schedule",
@@ -337,6 +338,7 @@ const fa: Record<keyof typeof en, string> = {
   testingConnection: "در حال تست…",
   testOk: "اتصال برقرار است",
   statusRetrying: "در انتظار تلاش مجدد",
+  retryFailed: "تلاش مجدد ناموفق‌ها",
 
   scheduler: "زمان‌بندی",
   schedulerEnabled: "فعال‌سازی زمان‌بندی سراسری",

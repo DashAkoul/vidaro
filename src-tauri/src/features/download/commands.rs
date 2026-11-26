@@ -205,6 +205,26 @@ pub async fn resume_all(app: AppHandle, mgr: State<'_, Manager>) -> AppResult<()
     Ok(())
 }
 
+/// Re-queue every failed item at once.
+///
+/// After a long YouTube block the error tab can hold dozens of items; making
+/// the user press Retry on each one was the remaining manual step.
+#[tauri::command]
+pub async fn retry_failed(app: AppHandle, mgr: State<'_, Manager>) -> AppResult<u32> {
+    let queue = mgr.queue.clone();
+    let failed: Vec<Arc<ItemInner>> = queue
+        .all()
+        .into_iter()
+        .filter(|inner| inner.status() == ItemStatus::Error)
+        .collect();
+
+    let count = failed.len() as u32;
+    for inner in failed {
+        control::retry(&app, queue.clone(), inner).await;
+    }
+    Ok(count)
+}
+
 #[tauri::command]
 pub fn clear_finished(app: AppHandle, mgr: State<'_, Manager>) -> AppResult<()> {
     let queue = mgr.queue.clone();

@@ -13,6 +13,7 @@ import {
   removeItem,
   resumeAll,
   resumeItem,
+  retryFailed,
   retryItem,
   updateItemSchedule,
 } from "../lib/api";
@@ -228,6 +229,7 @@ export default function Queue() {
   const hasFinished = items.some(
     (item) => item.status === "completed" || item.status === "cancelled",
   );
+  const hasFailed = items.some((item) => item.status === "error");
 
   function toggleGroup(key: string) {
     setCollapsed((current) => {
@@ -290,6 +292,13 @@ export default function Queue() {
             disabled={!hasPaused}
           >
             ▶ {t("resumeAll")}
+          </button>
+          <button
+            className="ghost-btn"
+            onClick={() => void guard(retryFailed)}
+            disabled={!hasFailed}
+          >
+            ↻ {t("retryFailed")}
           </button>
           <button
             className="ghost-btn"

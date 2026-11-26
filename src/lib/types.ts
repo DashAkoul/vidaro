@@ -162,3 +162,25 @@ export interface ConnectionReport {
   ytdlpAgeDays: number | null;
   jsRuntime: string | null;
 }
+
+/** Recognition of a pasted link, available before any fetch. */
+export interface Detection {
+  kind: "video" | "playlist" | "channel";
+  videoId: string | null;
+}
+
+/** Fast oEmbed preview shown while the full metadata is being fetched. */
+export interface InfoPreview {
+  videoId: string;
+  title: string;
+  thumbnail: string | null;
+  uploader: string | null;
+}
+
+/** State of the browser-independent cookie jar. */
+export interface SessionStatus {
+  hasFile: boolean;
+  authCookies: number;
+  updatedAt: number | null;
+  path: string;
+}

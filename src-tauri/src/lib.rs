@@ -126,6 +126,7 @@ pub fn run() {
             features::tools::commands::test_connection,
             // metadata
             features::metadata::commands::fetch_info,
+            features::metadata::commands::detect_url,
             features::metadata::commands::cancel_fetch,
             // download queue
             features::download::commands::enqueue_batch,
@@ -148,6 +149,8 @@ pub fn run() {
             features::settings::set_autostart,
             features::settings::export_data,
             features::settings::import_data,
+            features::settings::session::import_browser_cookies,
+            features::settings::session_status,
             // history
             features::history::commands::get_history,
             features::history::commands::clear_history,

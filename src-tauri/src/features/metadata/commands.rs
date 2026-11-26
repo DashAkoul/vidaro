@@ -1,7 +1,8 @@
 //! Fetching video / playlist / channel metadata without downloading.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Mutex as StdMutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager as _};
@@ -17,6 +18,50 @@ use crate::features::ytdlp::{best_error_line, friendly, is_transient};
 
 /// Hard cap on entries returned for very large channels.
 const MAX_ENTRIES: usize = 5000;
+
+/// How long a metadata result stays fresh. Pasting the same link twice, or
+/// switching back to a tab, must not spawn yt-dlp again: that process is what
+/// made "recognising" a link take 10+ seconds.
+const CACHE_TTL: Duration = Duration::from_secs(10 * 60);
+const CACHE_MAX: usize = 32;
+
+fn cache() -> &'static StdMutex<HashMap<String, (Instant, InfoResult)>> {
+    static CACHE: OnceLock<StdMutex<HashMap<String, (Instant, InfoResult)>>> = OnceLock::new();
+    CACHE.get_or_init(|| StdMutex::new(HashMap::new()))
+}
+
+fn cache_get(key: &str) -> Option<InfoResult> {
+    let mut guard = cache().lock().unwrap_or_else(|p| p.into_inner());
+    match guard.get(key) {
+        Some((at, result)) if at.elapsed() < CACHE_TTL => Some(result.clone()),
+        _ => {
+            guard.remove(key);
+            None
+        }
+    }
+}
+
+fn cache_put(key: String, result: &InfoResult) {
+    let mut guard = cache().lock().unwrap_or_else(|p| p.into_inner());
+    if guard.len() >= CACHE_MAX {
+        // Drop the oldest entry; the map is tiny, so a scan is cheaper than
+        // tracking insertion order.
+        if let Some(oldest) = guard
+            .iter()
+            .min_by_key(|(_, (at, _))| *at)
+            .map(|(key, _)| key.clone())
+        {
+            guard.remove(&oldest);
+        }
+    }
+    guard.insert(key, (Instant::now(), result.clone()));
+}
+
+/// Recognise a link without touching the network or spawning yt-dlp.
+#[tauri::command]
+pub fn detect_url(url: String) -> Option<crate::features::metadata::url::Detection> {
+    crate::features::metadata::url::detect(&url)
+}
 
 static FETCHING: AtomicBool = AtomicBool::new(false);
 static CANCELLED: AtomicBool = AtomicBool::new(false);
@@ -55,6 +100,29 @@ pub async fn fetch_info(
     }
     let _guard = FetchGuard;
 
+    let cache_key = format!("{}|{}", kind.as_deref().unwrap_or("auto"), url.trim());
+    if let Some(cached) = cache_get(&cache_key) {
+        emit_progress(&app, "cached");
+        return Ok(cached);
+    }
+
+    // Show the title/thumbnail as soon as oEmbed answers (about a second)
+    // instead of leaving the user staring at a spinner while yt-dlp works.
+    if let Some(detection) = crate::features::metadata::url::detect(&url) {
+        if let Some(video_id) = detection.video_id {
+            let app_for_preview = app.clone();
+            let settings = crate::core::state::config(&app).get();
+            tauri::async_runtime::spawn(async move {
+                crate::features::metadata::preview::emit(
+                    &app_for_preview,
+                    &settings,
+                    &video_id,
+                )
+                .await;
+            });
+        }
+    }
+
     // YouTube intermittently answers with a bot check or a degraded player
     // response. Those clear up on their own, so retry a couple of times before
     // reporting a failure.
@@ -64,7 +132,10 @@ pub async fn fetch_info(
         CANCELLED.store(false, Ordering::SeqCst);
 
         let error = match fetch_once(&app, &url, kind.as_deref(), attempt).await {
-            Ok(result) => return Ok(result),
+            Ok(result) => {
+                cache_put(cache_key, &result);
+                return Ok(result);
+            }
             Err(AppError::Cancelled) => return Err(AppError::Cancelled),
             Err(error) => error,
         };

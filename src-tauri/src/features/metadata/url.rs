@@ -1,5 +1,7 @@
 //! YouTube URL classification.
 
+use serde::Serialize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UrlKind {
     Video,
@@ -31,6 +33,87 @@ pub fn is_youtube_url(input: &str) -> bool {
         "https://music.youtube.com/",
     ];
     HOSTS.iter().any(|prefix| url.starts_with(prefix))
+}
+
+/// What the UI can show about a link before anything is fetched.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Detection {
+    /// "video" | "playlist" | "channel"
+    pub kind: String,
+    pub video_id: Option<String>,
+}
+
+/// Recognise a link locally.
+///
+/// This is what makes pasting a link feel instant: no process is spawned and
+/// no request is made, so the UI can say "single video / playlist / channel"
+/// while yt-dlp is still starting up.
+pub fn detect(url: &str) -> Option<Detection> {
+    let normalized = normalize_url(url)?;
+    let kind = classify_url(&normalized);
+    Some(Detection {
+        kind: kind.as_str().to_string(),
+        video_id: if kind == UrlKind::Video {
+            video_id(&normalized)
+        } else {
+            None
+        },
+    })
+}
+
+/// Pull the 11-character video id out of any YouTube URL shape.
+///
+/// The id is case-sensitive, so the URL is searched in lower case but the id
+/// itself is sliced from the original text.
+pub fn video_id(url: &str) -> Option<String> {
+    let lower = url.to_ascii_lowercase();
+    if !(lower.contains("youtube.com")
+        || lower.contains("youtu.be")
+        || lower.contains("youtube-nocookie.com"))
+    {
+        return None;
+    }
+
+    if let Some(index) = lower.find("v=") {
+        let preceded_by_param = lower[..index]
+            .chars()
+            .next_back()
+            .map(|c| c == '?' || c == '&')
+            .unwrap_or(false);
+        if preceded_by_param {
+            if let Some(id) = take_id(url, index + 2) {
+                return Some(id);
+            }
+        }
+    }
+
+    for marker in ["youtu.be/", "/shorts/", "/embed/", "/live/", "/v/"] {
+        if let Some(index) = lower.find(marker) {
+            if let Some(id) = take_id(url, index + marker.len()) {
+                return Some(id);
+            }
+        }
+    }
+    None
+}
+
+/// Slice an id starting at `start` and stop at the first delimiter.
+fn take_id(url: &str, start: usize) -> Option<String> {
+    let rest = url.get(start..)?;
+    let end = rest
+        .find(|c: char| c == '?' || c == '&' || c == '#' || c == '/')
+        .unwrap_or(rest.len());
+    let id = &rest[..end];
+    if is_video_id(id) {
+        Some(id.to_string())
+    } else {
+        None
+    }
+}
+
+fn is_video_id(value: &str) -> bool {
+    value.len() == 11 && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 pub fn classify_url(url: &str) -> UrlKind {
@@ -177,6 +260,40 @@ mod tests {
         assert!(is_youtube_url("https://youtu.be/abc"));
         assert!(!is_youtube_url("https://evil.com/youtube.com/watch"));
         assert!(!is_youtube_url("not a url"));
+    }
+
+    #[test]
+    fn detects_video_ids_in_every_url_shape() {
+        for url in [
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+            "https://www.youtube.com/watch?list=PL123&v=jNQXAC9IVRw&t=10s",
+            "https://youtu.be/jNQXAC9IVRw?t=5",
+            "https://www.youtube.com/shorts/jNQXAC9IVRw",
+            "https://m.youtube.com/watch?v=jNQXAC9IVRw",
+            "https://music.youtube.com/watch?v=jNQXAC9IVRw",
+            "https://www.youtube.com/embed/jNQXAC9IVRw",
+            "https://www.youtube.com/live/jNQXAC9IVRw",
+        ] {
+            assert_eq!(video_id(url).as_deref(), Some("jNQXAC9IVRw"), "{url}");
+        }
+        assert_eq!(video_id("https://example.com/watch?v=jNQXAC9IVRw"), None);
+        assert_eq!(video_id("https://www.youtube.com/watch?v=short"), None);
+    }
+
+    #[test]
+    fn detection_is_local_and_typed() {
+        let video = detect("https://youtu.be/jNQXAC9IVRw").unwrap();
+        assert_eq!(video.kind, "video");
+        assert_eq!(video.video_id.as_deref(), Some("jNQXAC9IVRw"));
+
+        let playlist = detect("https://www.youtube.com/playlist?list=PL123").unwrap();
+        assert_eq!(playlist.kind, "playlist");
+        assert_eq!(playlist.video_id, None);
+
+        let channel = detect("https://www.youtube.com/@someone").unwrap();
+        assert_eq!(channel.kind, "channel");
+
+        assert!(detect("not a url").is_none());
     }
 
     #[test]

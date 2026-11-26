@@ -7,14 +7,16 @@ import {
   describeError,
   ensureBinaries,
   exportData,
+  importBrowserCookies,
   importData,
+  sessionStatus,
   onToolsProgress,
   openToolsFolder,
   testConnection,
   updateYtdlp,
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import type { ConnectionReport, ToolsProgress } from "../lib/types";
+import type { ConnectionReport, SessionStatus, ToolsProgress } from "../lib/types";
 
 export default function Settings() {
   const { t } = useI18n();
@@ -25,7 +27,14 @@ export default function Settings() {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ToolsProgress | null>(null);
   const [report, setReport] = useState<ConnectionReport | null>(null);
+  const [session, setSession] = useState<SessionStatus | null>(null);
   const toastTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    sessionStatus()
+      .then(setSession)
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const subscription = onToolsProgress(setProgress);
@@ -100,6 +109,20 @@ export default function Settings() {
     if (typeof picked === "string" && picked) {
       updateSettings({ cookiesMode: "file", cookiesFile: picked });
       flash(t("saved"));
+    }
+  }
+
+  async function importSession() {
+    setBusy("session");
+    setError(null);
+    try {
+      const next = await importBrowserCookies(settings.cookiesBrowser);
+      setSession(next);
+      flash(t("saved"));
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -498,6 +521,25 @@ export default function Settings() {
             {t("cookiesBrowserHint")}
           </div>
         )}
+
+        <div className="settings-row">
+          <span>{t("savedSession")}</span>
+          <span className="muted small">
+            {session?.hasFile
+              ? t("sessionReady", { n: session.authCookies })
+              : t("sessionMissing")}
+          </span>
+          <button
+            className="btn secondary"
+            onClick={() => void importSession()}
+            disabled={busy !== null}
+          >
+            {busy === "session" ? t("importingSession") : t("importSession")}
+          </button>
+        </div>
+        <div className="muted small" style={{ marginInlineStart: 24 }}>
+          {t("sessionHint")}
+        </div>
       </section>
 
       <section className="settings-section">

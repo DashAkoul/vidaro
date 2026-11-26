@@ -1,5 +1,7 @@
 //! Settings commands, data import/export, and app metadata.
 
+pub mod session;
+
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -76,6 +78,12 @@ pub fn set_autostart(
     let saved = config.update(|settings| settings.autostart_enabled = enabled)?;
     events::emit(&app, events::SETTINGS_CHANGED, &saved);
     Ok(saved)
+}
+
+/// Where the managed YouTube cookie jar stands.
+#[tauri::command]
+pub fn session_status(app: AppHandle) -> session::SessionStatus {
+    session::status(&app)
 }
 
 #[derive(Serialize)]

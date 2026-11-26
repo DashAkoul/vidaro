@@ -33,6 +33,10 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths, result_file: &
         "10",
         "--socket-timeout",
         "30",
+        // Fragmented formats download in parallel: the same file in a fraction
+        // of the wall-clock time, which is what a slow link needs most.
+        "--concurrent-fragments",
+        "4",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -66,30 +70,44 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths, result_file: &
         // and throwing the video track away afterwards.
         args.push("-f".into());
         args.push("ba/b".into());
-        args.push("-x".into());
-        args.push("--audio-format".into());
-        args.push("mp3".into());
-        args.push("--audio-quality".into());
-        args.push("0".into());
-        if settings.embed_thumbnail {
-            args.push("--embed-thumbnail".into());
-        }
-        if settings.embed_metadata {
-            args.push("--add-metadata".into());
+
+        // Conversion and tagging are ffmpeg's job. Without it the audio is kept
+        // in its native container (m4a/webm) rather than failing the download.
+        if tools.ffmpeg.is_file() {
+            args.push("-x".into());
+            args.push("--audio-format".into());
+            args.push("mp3".into());
+            args.push("--audio-quality".into());
+            args.push("0".into());
+            if settings.embed_thumbnail {
+                args.push("--embed-thumbnail".into());
+            }
+            if settings.embed_metadata {
+                args.push("--add-metadata".into());
+            }
         }
     } else {
-        let selector = match item.quality.parse::<u32>() {
-            Ok(height) if item.quality != "best" => {
+        // Without ffmpeg there is no muxer, so ask for a single progressive
+        // stream instead of a video-only + audio-only pair that would need one.
+        let has_ffmpeg = tools.ffmpeg.is_file();
+        let selector = match (item.quality.parse::<u32>(), has_ffmpeg) {
+            (Ok(height), true) if item.quality != "best" => {
                 // Final `/b` fallback keeps the download working when a video
                 // has no separate streams at that resolution.
                 format!("bv*[height<={height}]+ba/b[height<={height}]/b")
             }
-            _ => "bv*+ba/b".to_string(),
+            (Ok(height), false) if item.quality != "best" => {
+                format!("b[height<={height}]/b")
+            }
+            (_, true) => "bv*+ba/b".to_string(),
+            (_, false) => "b".to_string(),
         };
         args.push("-f".into());
         args.push(selector);
-        args.push("--merge-output-format".into());
-        args.push("mp4".into());
+        if has_ffmpeg {
+            args.push("--merge-output-format".into());
+            args.push("mp4".into());
+        }
 
         if settings.write_subs {
             args.push("--write-subs".into());
@@ -175,9 +193,16 @@ mod tests {
     }
 
     fn tools() -> ToolPaths {
+        // `ffmpeg` must exist for the merge path: the argument builder checks
+        // the real file before choosing mergeable streams.
+        let dir = std::env::temp_dir().join("vidaro-args-test");
+        let _ = std::fs::create_dir_all(&dir);
+        let ffmpeg = dir.join("ffmpeg");
+        let _ = std::fs::write(&ffmpeg, b"");
+
         ToolPaths {
             ytdlp: "/tmp/yt-dlp".into(),
-            ffmpeg: "/tmp/ffmpeg".into(),
+            ffmpeg,
             ffprobe: "/tmp/ffprobe".into(),
             javascript_runtime: None,
         }
@@ -260,6 +285,57 @@ mod tests {
         );
         let template = args.iter().position(|a| a == "-o").map(|i| args[i + 1].clone());
         assert!(template.unwrap().contains("003 - %(title)s.%(ext)s"));
+    }
+
+    /// Without ffmpeg a merge is impossible, so a progressive stream is asked
+    /// for instead of failing at the mux step.
+    #[test]
+    fn missing_ffmpeg_falls_back_to_a_progressive_stream() {
+        let mut tool_paths = tools();
+        tool_paths.ffmpeg = "/nonexistent/ffmpeg".into();
+
+        let args = build(
+            &sample(false, "1080"),
+            &Settings::default(),
+            &tool_paths,
+            Path::new("/tmp/r"),
+        );
+        let selector = args
+            .iter()
+            .position(|a| a == "-f")
+            .map(|i| args[i + 1].clone());
+        assert_eq!(selector.as_deref(), Some("b[height<=1080]/b"));
+        assert!(!args.iter().any(|a| a == "--merge-output-format"));
+    }
+
+    /// Audio conversion is ffmpeg-only: without it the native container stays.
+    #[test]
+    fn missing_ffmpeg_skips_mp3_conversion() {
+        let mut tool_paths = tools();
+        tool_paths.ffmpeg = "/nonexistent/ffmpeg".into();
+
+        let args = build(
+            &sample(true, "best"),
+            &Settings::default(),
+            &tool_paths,
+            Path::new("/tmp/r"),
+        );
+        assert!(!args.iter().any(|a| a == "-x"));
+        assert!(!args.iter().any(|a| a == "--audio-format"));
+    }
+
+    /// Fragmented formats are downloaded in parallel.
+    #[test]
+    fn fragments_are_downloaded_concurrently() {
+        let args = build(
+            &sample(false, "best"),
+            &Settings::default(),
+            &tools(),
+            Path::new("/tmp/r"),
+        );
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--concurrent-fragments" && w[1] == "4"));
     }
 
     /// Without this flag yt-dlp cannot solve YouTube's player challenge.

@@ -2,4 +2,5 @@
 
 pub mod commands;
 pub mod model;
+pub mod preview;
 pub mod url;

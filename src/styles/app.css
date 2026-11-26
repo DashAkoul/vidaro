@@ -1507,3 +1507,48 @@ input, textarea, select {
 .retry-note {
   color: var(--warn);
 }
+
+/* ============ Instant link recognition ============ */
+.detected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-size: 12px;
+  direction: ltr;
+}
+
+.preview-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.preview-thumb {
+  width: 112px;
+  height: 63px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+}
+
+.preview-text {
+  min-width: 0;
+}
+
+.preview-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

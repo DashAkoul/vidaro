@@ -16,6 +16,7 @@ const en = {
 
   urlPlaceholder: "Paste a YouTube video, playlist or channel URL…",
   fetchBtn: "Fetch",
+  quickDownload: "Download now",
   fetching: "Fetching…",
   detected: "Detected",
   typeVideo: "Single video",
@@ -135,6 +136,13 @@ const en = {
   cookiesBrowserPick: "Browser",
   cookiesFilePick: "cookies.txt file",
   chooseCookies: "Choose file",
+  savedSession: "Saved session",
+  importSession: "Import session from browser",
+  importingSession: "Importing…",
+  sessionReady: "{n} signed-in cookies saved",
+  sessionMissing: "not imported yet",
+  sessionHint:
+    "Import once and the browser is no longer needed: Vidaro keeps its own copy of the signed-in cookies. Re-import if downloads start failing again.",
   cookiesHint:
     "YouTube blocks downloaders with a “confirm you’re not a bot” check. Sending cookies from a browser where you are signed in is the most reliable fix. Nothing is uploaded: the cookies go straight to yt-dlp.",
   cookiesBrowserHint:
@@ -207,6 +215,7 @@ const fa: Record<keyof typeof en, string> = {
 
   urlPlaceholder: "لینک ویدیو، پلی‌لیست یا کانال یوتیوب را بچسبانید…",
   fetchBtn: "دریافت اطلاعات",
+  quickDownload: "همین حالا دانلود کن",
   fetching: "در حال دریافت…",
   detected: "نوع تشخیص‌داده‌شده",
   typeVideo: "تک ویدیو",
@@ -326,6 +335,13 @@ const fa: Record<keyof typeof en, string> = {
   cookiesBrowserPick: "مرورگر",
   cookiesFilePick: "فایل cookies.txt",
   chooseCookies: "انتخاب فایل",
+  savedSession: "نشست ذخیره‌شده",
+  importSession: "ورود نشست از مرورگر",
+  importingSession: "در حال ورود…",
+  sessionReady: "{n} کوکی ورود ذخیره شد",
+  sessionMissing: "هنوز وارد نشده",
+  sessionHint:
+    "یک‌بار وارد کنید و از آن به بعد مرورگر لازم نیست؛ Vidaro نسخه‌ی خودش از کوکی‌های ورود را نگه می‌دارد. اگر دانلودها دوباره خطا دادند، دوباره وارد کنید.",
   cookiesHint:
     "یوتیوب دانلودرها را با پیام «تأیید کنید ربات نیستید» مسدود می‌کند. ارسال کوکی از مرورگری که در آن وارد حساب شده‌اید مطمئن‌ترین راه رفع آن است. هیچ داده‌ای جایی ارسال نمی‌شود؛ کوکی‌ها فقط به yt-dlp داده می‌شوند.",
   cookiesBrowserHint:

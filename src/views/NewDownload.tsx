@@ -5,13 +5,15 @@ import { useApp } from "../lib/app-context";
 import {
   cancelFetch,
   describeError,
+  detectUrl,
   enqueueBatch,
   fetchInfo,
+  onInfoPreview,
   onInfoProgress,
 } from "../lib/api";
 import { formatDuration } from "../lib/format";
 import { useI18n } from "../lib/i18n";
-import type { InfoResult, VideoEntry } from "../lib/types";
+import type { Detection, InfoPreview, InfoResult, VideoEntry } from "../lib/types";
 
 const STANDARD_HEIGHTS = [2160, 1440, 1080, 720, 480, 360];
 
@@ -40,6 +42,8 @@ export default function NewDownload() {
   const [notice, setNotice] = useState<string | null>(null);
   const [scheduleStart, setScheduleStart] = useState("");
   const [scheduleEnd, setScheduleEnd] = useState("");
+  const [detected, setDetected] = useState<Detection | null>(null);
+  const [preview, setPreview] = useState<InfoPreview | null>(null);
 
   // Follow the default folder if it is changed in Settings.
   useEffect(() => {
@@ -55,6 +59,30 @@ export default function NewDownload() {
     };
   }, []);
 
+  // The title/thumbnail arrive from oEmbed long before yt-dlp finishes.
+  useEffect(() => {
+    const subscription = onInfoPreview(setPreview);
+    return () => {
+      subscription.then((off) => off()).catch(() => undefined);
+    };
+  }, []);
+
+  // Recognise the link locally while the user is still typing: instant
+  // feedback instead of a spinner that waits for a spawned process.
+  useEffect(() => {
+    const candidate = url.trim();
+    if (!candidate) {
+      setDetected(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      detectUrl(candidate)
+        .then(setDetected)
+        .catch(() => setDetected(null));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [url]);
+
   const runFetch = useCallback(
     async (target: string) => {
       const trimmed = target.trim();
@@ -64,6 +92,7 @@ export default function NewDownload() {
       setError(null);
       setInfo(null);
       setNotice(null);
+      setPreview(null);
       setProgressMessage("");
       try {
         setInfo(await fetchInfo(trimmed, kindHint));
@@ -161,10 +190,56 @@ export default function NewDownload() {
       });
 
       setInfo(null);
+      setPreview(null);
+      setDetected(null);
       setUrl("");
       setSelected(new Set());
       setScheduleStart("");
       setScheduleEnd("");
+      goTab("queue");
+    } catch (e) {
+      setError(describeError(e));
+    }
+  }
+
+  /// Queue the video without waiting for the full metadata fetch.
+  ///
+  /// yt-dlp needs 10+ seconds to list formats on a slow link, and that wait
+  /// sits between the user and the download. The queue can start immediately
+  /// with the best quality; the title is refined from the oEmbed preview.
+  async function quickDownload() {
+    if (!detected || detected.kind !== "video") return;
+
+    let destination = dir;
+    if (!destination) {
+      destination = await chooseDir();
+      if (!destination) {
+        setNotice(t("chooseFolderFirst"));
+        return;
+      }
+    }
+    setNotice(null);
+
+    try {
+      await enqueueBatch({
+        items: [
+          {
+            videoId: detected.videoId ?? "",
+            title: preview?.title ?? detected.videoId ?? "Untitled",
+            url: url.trim(),
+            index: null,
+          },
+        ],
+        dir: destination,
+        batchName: "",
+        quality: "best",
+        audioOnly: false,
+        numbering: false,
+      });
+      setInfo(null);
+      setPreview(null);
+      setDetected(null);
+      setUrl("");
       goTab("queue");
     } catch (e) {
       setError(describeError(e));
@@ -176,6 +251,20 @@ export default function NewDownload() {
 
   return (
     <div className="view">
+      {preview && !info && (
+        <div className="preview-card">
+          {preview.thumbnail && (
+            <img className="preview-thumb" src={preview.thumbnail} alt="" />
+          )}
+          <div className="preview-text">
+            <div className="preview-title">{preview.title}</div>
+            {preview.uploader && (
+              <div className="muted small">{preview.uploader}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="url-row">
         <input
           className="url-input"
@@ -188,6 +277,12 @@ export default function NewDownload() {
           dir="ltr"
           spellCheck={false}
         />
+
+        {detected?.kind === "video" && !info && (
+          <button className="ghost-btn" onClick={() => void quickDownload()}>
+            {t("quickDownload")}
+          </button>
+        )}
         {fetching ? (
           <button className="btn secondary" onClick={() => void cancelFetch()}>
             {t("fetching")}
@@ -202,6 +297,18 @@ export default function NewDownload() {
           </button>
         )}
       </div>
+
+      {detected && (
+        <span className="detected-chip">
+          {t("detected")} ·{" "}
+          {detected.kind === "video"
+            ? t("typeVideo")
+            : detected.kind === "playlist"
+              ? t("typePlaylist")
+              : t("typeChannel")}
+          {detected.videoId ? ` · ${detected.videoId}` : ""}
+        </span>
+      )}
 
       <div className="kind-row">
         {(["auto", "video", "playlist", "channel"] as const).map((kind) => (

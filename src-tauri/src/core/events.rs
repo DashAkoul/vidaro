@@ -6,6 +6,8 @@ pub const ITEM_UPDATED: &str = "item-updated";
 pub const QUEUE_CHANGED: &str = "queue-changed";
 pub const HISTORY_CHANGED: &str = "history-changed";
 pub const INFO_PROGRESS: &str = "info-progress";
+/// Fast, partial metadata shown while the full fetch is still running.
+pub const INFO_PREVIEW: &str = "info-preview";
 pub const TOOLS_PROGRESS: &str = "tools-progress";
 pub const CLIPBOARD_LINK: &str = "clipboard-link";
 pub const SETTINGS_CHANGED: &str = "settings-changed";

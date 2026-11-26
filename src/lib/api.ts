@@ -11,10 +11,13 @@ import type {
   AppInfo,
   ClipboardLink,
   ConnectionReport,
+  Detection,
   EnqueuePayload,
   HistoryEntry,
+  InfoPreview,
   InfoResult,
   Item,
+  SessionStatus,
   Settings,
   ToolsProgress,
   ToolStatus,
@@ -34,6 +37,9 @@ export const fetchInfo = (url: string, kind: string) =>
   invoke<InfoResult>("fetch_info", { url, kind });
 
 export const cancelFetch = () => invoke<void>("cancel_fetch");
+
+/** Local link recognition — no process, no network. */
+export const detectUrl = (url: string) => invoke<Detection | null>("detect_url", { url });
 
 /* --------------------------------------------------------------- queue -- */
 
@@ -69,6 +75,10 @@ export const setSettings = (settings: Settings) =>
 export const setAutostart = (enabled: boolean) =>
   invoke<Settings>("set_autostart", { enabled });
 
+export const sessionStatus = () => invoke<SessionStatus>("session_status");
+export const importBrowserCookies = (browser: string) =>
+  invoke<SessionStatus>("import_browser_cookies", { browser });
+
 export const exportData = (path: string) => invoke<void>("export_data", { path });
 export const importData = (path: string) => invoke<void>("import_data", { path });
 
@@ -94,6 +104,9 @@ export const onHistoryChanged = (cb: () => void): Promise<UnlistenFn> =>
 
 export const onInfoProgress = (cb: (p: { message: string }) => void) =>
   subscribe<{ message: string }>("info-progress", cb);
+
+export const onInfoPreview = (cb: (p: InfoPreview) => void) =>
+  subscribe<InfoPreview>("info-preview", cb);
 
 export const onToolsProgress = (cb: (p: ToolsProgress) => void) =>
   subscribe<ToolsProgress>("tools-progress", cb);

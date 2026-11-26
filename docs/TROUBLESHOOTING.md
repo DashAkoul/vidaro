@@ -63,7 +63,8 @@ does help is changing *who* is asking or *how*.
    browser extension and choose *cookies.txt* instead. This is the only fix
    that works without changing the network.
 2. **Import the session once** — Settings → YouTube account → *Import session
-   from browser*. Vidaro copies the signed-in cookies into its own
+   from browser* or *Paste cookies.txt* (works with any browser and any
+   machine). Vidaro copies the signed-in cookies into its own
    `session/cookies.txt` and uses that file from then on, so the browser may be
    closed, updated or uninstalled. Use this when downloads work with the
    browser open and stop working when it is closed: closing a browser can
@@ -91,7 +92,10 @@ region-blocked video is reported immediately.
 ## A link takes several seconds before anything happens
 
 Recognition itself is instant: the type and video id are read from the URL in
-the UI while you are still typing or right after pasting. The title and
+the UI while you are still typing or right after pasting. If the fetch fails
+(bot check, network), the quality list and the *Add* button still appear, using
+the preview title and the standard resolutions — queueing must never depend on
+a fetch succeeding. The title and
 thumbnail follow from oEmbed in about a second, while yt-dlp is still starting
 up — on a slow link the full format list takes 10–20 seconds, so the app no
 longer makes you wait for it to start a download: **Download now** queues the

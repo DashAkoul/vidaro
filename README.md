@@ -22,7 +22,7 @@ Tauri 2 (Rust) + React + TypeScript.
 - **Clipboard detection** — copying a YouTube link offers a one-click download
 - **System tray** — closing the window keeps the app running
 - **Hidden autostart** — Vidaro starts in the tray at boot without opening a window
-- **Survives YouTube blocks** — import a session once (no browser needed afterwards), automatic retries, player-client rotation, and a connection self-test
+- **Survives YouTube blocks** — import a session once (any browser, or a pasted `cookies.txt`; no browser needed afterwards), automatic retries, player-client rotation, and a connection self-test
 - **Instant recognition** — the link type and id appear immediately, the title follows in about a second, and *Download now* skips the wait entirely
 - **Bilingual UI** — Persian (RTL) and English, dark/light/system themes
 - **Self-provisioning tools** — yt-dlp, ffmpeg and the Deno JavaScript runtime are fetched on first run, keeping the installer small

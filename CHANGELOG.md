@@ -105,6 +105,19 @@ and cookies, a real download completed inside the app.
 - **ffmpeg is optional.** Without it Vidaro asks for a single progressive
   stream instead of an unmuxable video+audio pair, and keeps audio in its
   native container instead of failing the MP3 conversion.
+- **The download options no longer depend on the metadata fetch.** When
+  YouTube blocks the fetch, the app still shows the preview title plus the
+  standard quality list and lets the video be queued; the queue retries on its
+  own. Before this, a bot check meant no quality list and no way to enqueue.
+- **Paste a `cookies.txt`.** Settings → YouTube account accepts the contents of
+  an exported cookie file, which works with any browser, any extension and any
+  machine — the browser-independent alternative to reading a live profile.
+- **System tools are used before downloads.** If `yt-dlp`, `ffmpeg` or a JS
+  runtime is already installed on the machine (scoop, choco, brew, apt,
+  nodejs), Vidaro uses it instead of fetching another copy from GitHub.
+- **Tool downloads honour the proxy.** Installing or updating yt-dlp/ffmpeg/
+  Deno used to connect directly even when a proxy was configured, which failed
+  on networks where GitHub is filtered.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) documents the diagnosis
   and the order in which the workarounds actually help.
 

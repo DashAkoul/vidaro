@@ -10,6 +10,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AppInfo,
   ClipboardLink,
+  ConnectionReport,
   EnqueuePayload,
   HistoryEntry,
   InfoResult,
@@ -25,6 +26,7 @@ export const binariesStatus = () => invoke<ToolStatus>("binaries_status");
 export const ensureBinaries = () => invoke<ToolStatus>("ensure_binaries");
 export const updateYtdlp = () => invoke<string>("update_ytdlp");
 export const openToolsFolder = () => invoke<void>("open_tools_folder");
+export const testConnection = () => invoke<ConnectionReport>("test_connection");
 
 /* ------------------------------------------------------------- metadata -- */
 

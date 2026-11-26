@@ -283,4 +283,10 @@ const FALLBACK_SETTINGS: Settings = {
   closeToTray: true,
   clipboardWatch: true,
   notifyOnClipboard: true,
+  autoRetry: true,
+  autoRetryMax: 4,
+  retryDelaySecs: 300,
+  cookiesMode: "off",
+  cookiesBrowser: "chrome",
+  cookiesFile: "",
 };

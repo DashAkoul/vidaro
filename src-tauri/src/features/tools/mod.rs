@@ -1,6 +1,7 @@
 //! Helper-binary management: yt-dlp and ffmpeg.
 
 pub mod commands;
+pub mod diagnostics;
 pub mod installer;
 pub mod paths;
 

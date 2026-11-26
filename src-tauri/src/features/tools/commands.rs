@@ -33,6 +33,17 @@ pub async fn update_ytdlp(
     tools.update_ytdlp(&app).await
 }
 
+/// Ask YouTube for one known video with the current settings and explain the
+/// result. Backs the "Test connection" button in Settings.
+#[tauri::command]
+pub async fn test_connection(
+    app: AppHandle,
+    tools: State<'_, ToolManager>,
+) -> AppResult<crate::features::tools::diagnostics::ConnectionReport> {
+    let manager = tools.inner().clone();
+    Ok(crate::features::tools::diagnostics::probe(&app, &manager).await)
+}
+
 /// Open the folder that holds yt-dlp / ffmpeg.
 #[tauri::command]
 pub fn open_tools_folder(tools: State<'_, ToolManager>) -> AppResult<()> {

@@ -362,6 +362,15 @@ pub fn load_from(path: &Path, queue: &Queue) {
     };
 
     for mut item in items {
+        // An item that was waiting for an automatic retry keeps waiting: the
+        // timer lives in `retry_at` and the retry tick will start it.
+        if item.status == ItemStatus::Queued && item.retry_at.is_some() {
+            item.speed_bps = 0.0;
+            item.eta_secs = 0.0;
+            queue.insert(ItemInner::new(item));
+            continue;
+        }
+
         // Anything that was running when the app closed comes back paused, so
         // the user can decide when to resume it.
         if matches!(
@@ -378,6 +387,8 @@ pub fn load_from(path: &Path, queue: &Queue) {
             if item.stage == Stage::Merge {
                 item.stage = Stage::Download;
             }
+            // A crashed attempt must not keep a pending automatic retry.
+            item.retry_at = None;
         }
         queue.insert(ItemInner::new(item));
     }

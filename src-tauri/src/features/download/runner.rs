@@ -308,6 +308,9 @@ async fn finish_ok(
         item.speed_bps = 0.0;
         item.eta_secs = 0.0;
         item.paused_by = None;
+        // The failure that this item may have been retrying is gone.
+        item.attempts = 0;
+        item.retry_at = None;
         if let Some(path) = output_path.clone() {
             item.output_path = Some(path);
         }
@@ -367,15 +370,43 @@ fn fail(app: &AppHandle, queue: &Arc<Queue>, inner: &Arc<ItemInner>, message: &s
         return;
     }
 
+    let settings = crate::core::state::config_opt(app)
+        .map(|config| config.get())
+        .unwrap_or_default();
+    let friendly = crate::features::ytdlp::friendly(message);
+    let transient = crate::features::ytdlp::is_transient(message);
+
     let snapshot = inner.with_item(|item| {
-        item.status = ItemStatus::Error;
-        item.error = Some(message.to_string());
         item.speed_bps = 0.0;
         item.eta_secs = 0.0;
+
+        // A transient failure (bot check, degraded player, dropped connection)
+        // is not the end of the item: put it back in the queue with a due
+        // time instead of leaving the user to press Retry later.
+        let plan = crate::features::download::retry::plan(&settings, transient, item.attempts);
+
+        if let Some((attempt, delay)) = plan {
+            item.attempts = attempt;
+            item.retry_at = Some(chrono::Utc::now().timestamp_millis() + delay * 1000);
+            item.status = ItemStatus::Queued;
+            item.error = Some(format!(
+                "{} Retrying automatically in {} (attempt {}/{}).",
+                friendly,
+                crate::features::download::retry::humanize(delay),
+                attempt,
+                settings.auto_retry_max
+            ));
+        } else {
+            item.status = ItemStatus::Error;
+            item.retry_at = None;
+            item.error = Some(friendly);
+        }
         item.clone()
     });
+
     events::emit(app, events::ITEM_UPDATED, &snapshot);
     control::persist(app, queue);
+    events::emit_empty(app, events::QUEUE_CHANGED);
 }
 
 /// Is the item still part of the queue (i.e. not removed by the user)?

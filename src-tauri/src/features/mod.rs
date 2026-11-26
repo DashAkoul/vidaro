@@ -7,3 +7,4 @@ pub mod metadata;
 pub mod settings;
 pub mod system;
 pub mod tools;
+pub mod ytdlp;

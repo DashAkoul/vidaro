@@ -13,6 +13,7 @@ use crate::core::events;
 use crate::features::metadata::model::{InfoProgress, InfoResult, RawInfo, RawThumbnail, VideoEntry};
 use crate::features::metadata::url::{classify_url, normalize_channel_url, UrlKind};
 use crate::features::tools::ToolManager;
+use crate::features::ytdlp::{best_error_line, friendly, is_transient};
 
 /// Hard cap on entries returned for very large channels.
 const MAX_ENTRIES: usize = 5000;
@@ -62,7 +63,7 @@ pub async fn fetch_info(
         attempt += 1;
         CANCELLED.store(false, Ordering::SeqCst);
 
-        let error = match fetch_once(&app, &url, kind.as_deref()).await {
+        let error = match fetch_once(&app, &url, kind.as_deref(), attempt).await {
             Ok(result) => return Ok(result),
             Err(AppError::Cancelled) => return Err(AppError::Cancelled),
             Err(error) => error,
@@ -78,88 +79,12 @@ pub async fn fetch_info(
     }
 }
 
-/// Errors that are worth retrying: YouTube throttles and bot-checks
-/// intermittently, so the same request usually succeeds a moment later.
-fn is_transient(message: &str) -> bool {
-    const MARKERS: [&str; 6] = [
-        "Sign in to confirm",
-        "not a bot",
-        "Requested format is not available",
-        "page needs to be reloaded",
-        "No video formats found",
-        "Unable to extract",
-    ];
-    MARKERS.iter().any(|marker| message.contains(marker))
-}
-
-/// Strip yt-dlp's decorations so the UI shows a readable sentence.
-fn clean_error(raw: &str) -> String {
-    let mut text = raw.trim();
-    if let Some(rest) = text.strip_prefix("ERROR: ") {
-        text = rest;
-    }
-    if text.starts_with('[') {
-        if let Some(bracket) = text.find("] ") {
-            let rest = &text[bracket + 2..];
-            text = match rest.find(": ") {
-                Some(colon) if !rest[..colon].contains(' ') => &rest[colon + 2..],
-                _ => rest,
-            };
-        }
-    }
-    text.trim().to_string()
-}
-
-/// Pick the most useful diagnostic out of yt-dlp's stderr tail.
-///
-/// An `ERROR:` always wins; a `WARNING:` that mentions a bot challenge wins
-/// over unrelated progress chatter; otherwise the last meaningful line is
-/// better than a generic "could not read this URL".
-fn best_error_line(lines: &[String]) -> String {
-    let is_block = |line: &str| {
-        line.contains("not a bot")
-            || line.contains("Sign in to confirm")
-            || line.contains("unavailable")
-            || line.contains("Unable to extract")
-    };
-
-    if let Some(line) = lines
-        .iter()
-        .rev()
-        .find(|line| line.starts_with("ERROR:") || is_block(line))
-    {
-        return line.clone();
-    }
-    if let Some(line) = lines.iter().rev().find(|line| line.starts_with("WARNING:")) {
-        return line.clone();
-    }
-    lines
-        .iter()
-        .rev()
-        .find(|line| !line.starts_with("[download]"))
-        .cloned()
-        .unwrap_or_default()
-}
-
-/// Turn the two failure modes users actually hit into actionable sentences.
-fn friendly_error(raw: &str) -> String {
-    let message = clean_error(raw);
-
-    if message.contains("not a bot")
-        || message.contains("Sign in to confirm")
-        || message.contains("confirm you’re not a bot")
-    {
-        return "YouTube asked to confirm you are not a bot. This is a temporary block on your network/IP, not on the video — switch to another VPN or proxy server (Settings → Proxy), or wait a few minutes and try again."
-            .to_string();
-    }
-    if message.contains("Video unavailable") || message.contains("This video is unavailable") {
-        return "This video is unavailable — it may be deleted, private, or blocked in your region."
-            .to_string();
-    }
-    message
-}
-
-async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult<InfoResult> {
+async fn fetch_once(
+    app: &AppHandle,
+    url: &str,
+    kind: Option<&str>,
+    attempt: u8,
+) -> AppResult<InfoResult> {
 
     // Also the security boundary: an option-looking string never reaches yt-dlp.
     let Some(trimmed) = crate::features::metadata::url::normalize_url(url) else {
@@ -205,9 +130,21 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
     }
     args.push("--dump-single-json".into());
 
+    let settings = crate::core::state::config(&app).get();
+
+    // A signed-in session is the only dependable way past the bot check.
+    args.extend(crate::features::ytdlp::cookie_args(&settings));
+
+    // Each retry asks YouTube a different way instead of repeating the request
+    // that just failed.
+    if let Some(client) = crate::features::ytdlp::alternate_client(u32::from(attempt.saturating_sub(1))) {
+        args.push("--extractor-args".into());
+        args.push(format!("youtube:player_client={client}"));
+    }
+
     // yt-dlp inherits the process/registry proxy unless told otherwise, so
     // "off" needs an explicit empty value.
-    match crate::core::state::config(&app).get().proxy_setting() {
+    match settings.proxy_setting() {
         crate::core::config::ProxySetting::Url(proxy) => {
             args.push("--proxy".into());
             args.push(proxy);
@@ -313,7 +250,7 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
 
     if json_bytes.iter().all(|b| b.is_ascii_whitespace()) {
         let detail = if !last_error.is_empty() {
-            friendly_error(&last_error)
+            friendly(&last_error)
         } else if !success {
             format!("yt-dlp exited with an error{exit_note}")
         } else {
@@ -336,7 +273,7 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
         // No document: report what yt-dlp actually said.
         Ok(None) => {
             return Err(AppError::Invalid(if !last_error.is_empty() {
-                friendly_error(&last_error)
+                friendly(&last_error)
             } else if !success {
                 format!(
                     "yt-dlp returned no video information{exit_note}. Check the download tools and your network/proxy settings."
@@ -349,7 +286,7 @@ async fn fetch_once(app: &AppHandle, url: &str, kind: Option<&str>) -> AppResult
             let detail = if last_error.is_empty() {
                 e.to_string()
             } else {
-                format!("{} ({})", e, friendly_error(&last_error))
+                format!("{} ({})", e, friendly(&last_error))
             };
             return Err(AppError::Invalid(format!("could not parse metadata: {detail}")));
         }
@@ -552,11 +489,11 @@ mod tests {
     #[test]
     fn error_messages_are_cleaned() {
         assert_eq!(
-            clean_error("ERROR: [youtube] cXeLjuzQglg: This video is unavailable"),
+            crate::features::ytdlp::clean("ERROR: [youtube] cXeLjuzQglg: This video is unavailable"),
             "This video is unavailable"
         );
-        assert_eq!(clean_error("ERROR: something broke"), "something broke");
-        assert_eq!(clean_error("plain message"), "plain message");
+        assert_eq!(crate::features::ytdlp::clean("ERROR: something broke"), "something broke");
+        assert_eq!(crate::features::ytdlp::clean("plain message"), "plain message");
     }
 
     #[test]
@@ -568,7 +505,7 @@ mod tests {
 
     #[test]
     fn bot_check_becomes_actionable() {
-        let message = friendly_error(
+        let message = friendly(
             "ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies",
         );
         assert!(message.contains("switch to another VPN"), "{message}");
@@ -590,7 +527,7 @@ mod tests {
         ];
         let picked = best_error_line(&lines);
         assert!(picked.contains("not a bot"), "{picked}");
-        assert!(friendly_error(&picked).contains("switch to another VPN"));
+        assert!(friendly(&picked).contains("switch to another VPN"));
     }
 
     #[test]

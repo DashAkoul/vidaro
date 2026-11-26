@@ -121,6 +121,8 @@ pub async fn enqueue_batch(
             schedule_start: payload.schedule_start.clone(),
             schedule_end: payload.schedule_end.clone(),
             paused_by: None,
+            attempts: 0,
+            retry_at: None,
         };
 
         let inner = ItemInner::new(item.clone());

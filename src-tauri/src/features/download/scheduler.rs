@@ -77,6 +77,9 @@ async fn tick(app: &AppHandle, queue: &Arc<Queue>) {
         crate::features::download::queue::persist(app, queue);
     }
 
+    // Pending automatic retries are independent of the scheduler window.
+    crate::features::download::retry::tick(app, queue);
+
     let Some(config) = crate::core::state::config_opt(app) else {
         return;
     };

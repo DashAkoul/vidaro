@@ -35,6 +35,10 @@ export interface Item {
   scheduleStart: string | null;
   scheduleEnd: string | null;
   pausedBy: PausedBy | null;
+  /** Automatic retries already spent on this item. */
+  attempts?: number;
+  /** When the next automatic retry is due (epoch ms). */
+  retryAt?: number | null;
 }
 
 export interface VideoEntry {
@@ -87,6 +91,14 @@ export interface Settings {
   closeToTray: boolean;
   clipboardWatch: boolean;
   notifyOnClipboard: boolean;
+
+  autoRetry: boolean;
+  autoRetryMax: number;
+  retryDelaySecs: number;
+
+  cookiesMode: "off" | "browser" | "file";
+  cookiesBrowser: string;
+  cookiesFile: string;
 }
 
 export interface ToolStatus {
@@ -138,4 +150,12 @@ export interface EnqueuePayload {
   numbering: boolean;
   scheduleStart?: string;
   scheduleEnd?: string;
+}
+
+export interface ConnectionReport {
+  ok: boolean;
+  kind: "ok" | "botCheck" | "degraded" | "network" | "tools" | "unavailable" | "unknown";
+  message: string;
+  ytdlpVersion: string | null;
+  ytdlpAgeDays: number | null;
 }

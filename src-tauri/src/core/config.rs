@@ -40,6 +40,25 @@ pub struct Settings {
     pub close_to_tray: bool,
     pub clipboard_watch: bool,
     pub notify_on_clipboard: bool,
+
+    // Reliability
+    /// Retry transient YouTube failures on its own instead of parking the
+    /// item as failed. This is what turns "sometimes it works" into "it
+    /// finishes on its own a few minutes later".
+    pub auto_retry: bool,
+    /// How many automatic retries one item may use.
+    pub auto_retry_max: u32,
+    /// Base delay between retries; doubles on every attempt.
+    pub retry_delay_secs: u32,
+
+    // YouTube account
+    /// "off" | "browser" | "file" — how yt-dlp gets a signed-in session.
+    /// Cookies are the only reliable cure for YouTube's bot check.
+    pub cookies_mode: String,
+    /// Browser to read cookies from when `cookies_mode` is "browser".
+    pub cookies_browser: String,
+    /// `cookies.txt` path when `cookies_mode` is "file".
+    pub cookies_file: String,
 }
 
 impl Default for Settings {
@@ -64,6 +83,12 @@ impl Default for Settings {
             close_to_tray: true,
             clipboard_watch: true,
             notify_on_clipboard: true,
+            auto_retry: true,
+            auto_retry_max: 4,
+            retry_delay_secs: 300,
+            cookies_mode: "off".into(),
+            cookies_browser: "chrome".into(),
+            cookies_file: String::new(),
         }
     }
 }
@@ -93,6 +118,17 @@ impl Settings {
             self.proxy_mode = "off".into();
         }
         self.max_concurrent = self.max_concurrent.clamp(1, 8);
+        self.auto_retry_max = self.auto_retry_max.clamp(0, 20);
+        self.retry_delay_secs = self.retry_delay_secs.clamp(30, 86_400);
+        if !matches!(self.cookies_mode.as_str(), "off" | "browser" | "file") {
+            self.cookies_mode = "off".into();
+        }
+        if !matches!(
+            self.cookies_browser.as_str(),
+            "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "opera" | "firefox" | "safari"
+        ) {
+            self.cookies_browser = "chrome".into();
+        }
         self.scheduler_start = normalize_time(&self.scheduler_start, "02:00");
         self.scheduler_end = normalize_time(&self.scheduler_end, "06:00");
         if self.sub_langs.trim().is_empty() {

@@ -33,7 +33,6 @@ pub fn async_command<S: AsRef<OsStr>>(program: S) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new(program);
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
     force_utf8(&mut cmd);

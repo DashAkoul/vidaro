@@ -391,7 +391,7 @@ const QueueRow = memo(function QueueRow({
 
         <div className="dl-sub">
           <span className={`status-chip ${item.status}`}>
-            {t(STATUS_LABEL[item.status])}
+            {item.retryAt ? t("statusRetrying") : t(STATUS_LABEL[item.status])}
             {running ? ` · ${t(STAGE_LABEL[item.stage] ?? "stageDownload")}` : ""}
           </span>
           {item.audioOnly && <span className="badge-chip">MP3</span>}
@@ -409,8 +409,11 @@ const QueueRow = memo(function QueueRow({
           {running && item.etaSecs > 0 && (
             <span className="dl-eta">{t("eta", { v: formatEta(item.etaSecs) })}</span>
           )}
-          {item.status === "error" && item.error && (
-            <span className="error-inline" title={item.error}>
+          {(item.status === "error" || item.retryAt) && item.error && (
+            <span
+              className={`error-inline ${item.retryAt ? "retry-note" : ""}`}
+              title={item.error}
+            >
               {item.error}
             </span>
           )}

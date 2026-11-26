@@ -125,6 +125,31 @@ const en = {
   proxyPort: "Port",
   proxyNote: "Supports HTTP, HTTPS, SOCKS5 and SOCKS5h.",
 
+  account: "YouTube account",
+  cookiesMode: "Send cookies",
+  cookiesOff: "Off",
+  cookiesBrowser: "From browser",
+  cookiesFile: "cookies.txt",
+  cookiesBrowserPick: "Browser",
+  cookiesFilePick: "cookies.txt file",
+  chooseCookies: "Choose file",
+  cookiesHint:
+    "YouTube blocks downloaders with a “confirm you’re not a bot” check. Sending cookies from a browser where you are signed in is the most reliable fix. Nothing is uploaded: the cookies go straight to yt-dlp.",
+  cookiesBrowserHint:
+    "If reading the browser fails (Chrome may be locked or encrypted by Windows), export cookies.txt and pick it instead.",
+
+  reliability: "Reliability",
+  autoRetry: "Retry failed downloads automatically",
+  autoRetryMax: "Maximum retries",
+  retryDelay: "Base delay (seconds)",
+  retryHint:
+    "Bot checks and dropped connections clear up on their own. Transient failures are retried with a growing delay, including after a restart.",
+
+  testConnection: "Test connection",
+  testingConnection: "Testing…",
+  testOk: "Connection OK",
+  statusRetrying: "Retrying",
+
   scheduler: "Scheduler",
   schedulerEnabled: "Enable global schedule",
   schedulerStart: "Start",
@@ -287,6 +312,31 @@ const fa: Record<keyof typeof en, string> = {
   proxyHost: "آدرس",
   proxyPort: "پورت",
   proxyNote: "پشتیبانی از HTTP، HTTPS، SOCKS5 و SOCKS5h.",
+
+  account: "حساب یوتیوب",
+  cookiesMode: "ارسال کوکی",
+  cookiesOff: "خاموش",
+  cookiesBrowser: "از مرورگر",
+  cookiesFile: "فایل cookies.txt",
+  cookiesBrowserPick: "مرورگر",
+  cookiesFilePick: "فایل cookies.txt",
+  chooseCookies: "انتخاب فایل",
+  cookiesHint:
+    "یوتیوب دانلودرها را با پیام «تأیید کنید ربات نیستید» مسدود می‌کند. ارسال کوکی از مرورگری که در آن وارد حساب شده‌اید مطمئن‌ترین راه رفع آن است. هیچ داده‌ای جایی ارسال نمی‌شود؛ کوکی‌ها فقط به yt-dlp داده می‌شوند.",
+  cookiesBrowserHint:
+    "اگر خواندن کوکی مرورگر شکست خورد (کروم قفل یا با ویندوز رمزنگاری شده باشد)، فایل cookies.txt را خروجی بگیرید و انتخاب کنید.",
+
+  reliability: "پایداری",
+  autoRetry: "تلاش مجدد خودکار برای دانلودهای ناموفق",
+  autoRetryMax: "حداکثر تلاش مجدد",
+  retryDelay: "فاصله پایه (ثانیه)",
+  retryHint:
+    "محدودیت‌های موقت یوتیوب و قطعی اتصال خودبه‌خود برطرف می‌شوند. خطاهای موقت با فاصله‌ی افزایشی دوباره تلاش می‌شوند، حتی پس از بستن و باز کردن برنامه.",
+
+  testConnection: "تست اتصال",
+  testingConnection: "در حال تست…",
+  testOk: "اتصال برقرار است",
+  statusRetrying: "در انتظار تلاش مجدد",
 
   scheduler: "زمان‌بندی",
   schedulerEnabled: "فعال‌سازی زمان‌بندی سراسری",

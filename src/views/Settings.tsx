@@ -10,10 +10,11 @@ import {
   importData,
   onToolsProgress,
   openToolsFolder,
+  testConnection,
   updateYtdlp,
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import type { ToolsProgress } from "../lib/types";
+import type { ConnectionReport, ToolsProgress } from "../lib/types";
 
 export default function Settings() {
   const { t } = useI18n();
@@ -23,6 +24,7 @@ export default function Settings() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ToolsProgress | null>(null);
+  const [report, setReport] = useState<ConnectionReport | null>(null);
   const toastTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -87,6 +89,30 @@ export default function Settings() {
     } finally {
       setBusy(null);
       setProgress(null);
+    }
+  }
+
+  async function chooseCookies() {
+    const picked = await open({
+      multiple: false,
+      filters: [{ name: "cookies.txt", extensions: ["txt"] }],
+    });
+    if (typeof picked === "string" && picked) {
+      updateSettings({ cookiesMode: "file", cookiesFile: picked });
+      flash(t("saved"));
+    }
+  }
+
+  async function runConnectionTest() {
+    setBusy("test");
+    setError(null);
+    setReport(null);
+    try {
+      setReport(await testConnection());
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -396,6 +422,154 @@ export default function Settings() {
         <div className="muted small" style={{ marginTop: 8, marginInlineStart: 24 }}>
           {t("proxyNote")}
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h3>{t("account")}</h3>
+
+        <div className="settings-row">
+          <span>{t("cookiesMode")}</span>
+          <div className="seg">
+            {(["off", "browser", "file"] as const).map((mode) => (
+              <button
+                key={mode}
+                className={`seg-btn ${settings.cookiesMode === mode ? "active" : ""}`}
+                onClick={() => updateSettings({ cookiesMode: mode })}
+              >
+                {mode === "off"
+                  ? t("cookiesOff")
+                  : mode === "browser"
+                    ? t("cookiesBrowser")
+                    : t("cookiesFile")}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {settings.cookiesMode === "browser" && (
+          <div className="settings-row">
+            <span>{t("cookiesBrowserPick")}</span>
+            <select
+              value={settings.cookiesBrowser}
+              onChange={(event) =>
+                updateSettings({ cookiesBrowser: event.target.value })
+              }
+            >
+              {["chrome", "chromium", "edge", "brave", "vivaldi", "opera", "firefox", "safari"].map(
+                (browser) => (
+                  <option key={browser} value={browser}>
+                    {browser}
+                  </option>
+                ),
+              )}
+            </select>
+          </div>
+        )}
+
+        {settings.cookiesMode === "file" && (
+          <div className="settings-row">
+            <span>{t("cookiesFilePick")}</span>
+            <div className="dir-row">
+              <input
+                className="dir-input"
+                value={settings.cookiesFile}
+                readOnly
+                dir="ltr"
+              />
+              <button className="btn secondary" onClick={() => void chooseCookies()}>
+                {t("chooseCookies")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="muted small" style={{ marginInlineStart: 24 }}>
+          {t("cookiesHint")}
+        </div>
+        {settings.cookiesMode === "browser" && (
+          <div className="muted small" style={{ marginInlineStart: 24 }}>
+            {t("cookiesBrowserHint")}
+          </div>
+        )}
+      </section>
+
+      <section className="settings-section">
+        <h3>{t("reliability")}</h3>
+
+        <label className="settings-row check">
+          <input
+            type="checkbox"
+            checked={settings.autoRetry}
+            onChange={(event) => updateSettings({ autoRetry: event.target.checked })}
+          />
+          <span>{t("autoRetry")}</span>
+        </label>
+
+        <div className="settings-row">
+          <span>{t("autoRetryMax")}</span>
+          <input
+            type="number"
+            min={0}
+            max={20}
+            value={settings.autoRetryMax}
+            disabled={!settings.autoRetry}
+            onChange={(event) =>
+              updateSettings({
+                autoRetryMax: Math.min(20, Math.max(0, Number(event.target.value) || 0)),
+              })
+            }
+            style={{ width: 90 }}
+          />
+        </div>
+
+        <div className="settings-row">
+          <span>{t("retryDelay")}</span>
+          <input
+            type="number"
+            min={30}
+            max={86400}
+            step={30}
+            value={settings.retryDelaySecs}
+            disabled={!settings.autoRetry}
+            onChange={(event) =>
+              updateSettings({
+                retryDelaySecs: Math.min(
+                  86400,
+                  Math.max(30, Number(event.target.value) || 30),
+                ),
+              })
+            }
+            style={{ width: 110 }}
+          />
+        </div>
+
+        <div className="muted small" style={{ marginInlineStart: 24 }}>
+          {t("retryHint")}
+        </div>
+
+        <div className="settings-row">
+          <span>{t("testConnection")}</span>
+          <button
+            className="btn secondary"
+            onClick={() => void runConnectionTest()}
+            disabled={busy !== null}
+          >
+            {busy === "test" ? t("testingConnection") : t("testConnection")}
+          </button>
+        </div>
+
+        {report && (
+          <div
+            className="muted small"
+            style={{
+              marginInlineStart: 24,
+              color: report.ok ? "var(--ok)" : "var(--warn)",
+            }}
+          >
+            {report.ok ? `${t("testOk")} — ` : ""}
+            {report.message}
+          </div>
+        )}
       </section>
 
       <section className="settings-section">

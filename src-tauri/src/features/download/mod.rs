@@ -6,6 +6,7 @@ pub mod control;
 pub mod model;
 pub mod parser;
 pub mod queue;
+pub mod retry;
 pub mod runner;
 pub mod scheduler;
 
@@ -113,6 +114,8 @@ pub fn enqueue_single(
         schedule_start: None,
         schedule_end: None,
         paused_by: None,
+        attempts: 0,
+        retry_at: None,
     };
 
     let inner = ItemInner::new(item.clone());

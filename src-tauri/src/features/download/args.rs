@@ -107,6 +107,16 @@ pub fn build(item: &Item, settings: &Settings, tools: &ToolPaths, result_file: &
         args.push(rate_limit.to_string());
     }
 
+    // A signed-in session is the only dependable way past YouTube's bot check.
+    args.extend(crate::features::ytdlp::cookie_args(settings));
+
+    // A retry rotates the player client: YouTube throttles one client at a
+    // time, and a different one often succeeds immediately.
+    if let Some(client) = crate::features::ytdlp::alternate_client(item.attempts) {
+        args.push("--extractor-args".into());
+        args.push(format!("youtube:player_client={client}"));
+    }
+
     // `<dir>/<prefix>%(title)s.%(ext)s` — the prefix already carries "003 - ".
     let template = Path::new(&item.dir).join(format!("{}%(title)s.%(ext)s", item.prefix));
     args.push("-o".into());
@@ -152,6 +162,8 @@ mod tests {
             schedule_start: None,
             schedule_end: None,
             paused_by: None,
+            attempts: 0,
+            retry_at: None,
         }
     }
 
@@ -188,6 +200,46 @@ mod tests {
         );
         assert!(args.iter().any(|a| a == "-x"));
         assert!(args.windows(2).any(|w| w[0] == "--audio-format" && w[1] == "mp3"));
+    }
+
+    /// A retry must not repeat the exact request that just failed.
+    #[test]
+    fn retries_rotate_the_player_client() {
+        let mut item = sample(false, "best");
+        item.attempts = 0;
+        let first = build(&item, &Settings::default(), &tools(), Path::new("/tmp/r"));
+        assert!(!first.iter().any(|a| a == "--extractor-args"));
+
+        item.attempts = 1;
+        let second = build(&item, &Settings::default(), &tools(), Path::new("/tmp/r"));
+        let position = second
+            .iter()
+            .position(|a| a == "--extractor-args")
+            .expect("a retry must switch the player client");
+        assert_eq!(second[position + 1], "youtube:player_client=web_safari");
+    }
+
+    #[test]
+    fn cookies_are_passed_when_configured() {
+        let dir = std::env::temp_dir().join("vidaro-cookie-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let cookies = dir.join("cookies.txt");
+        std::fs::write(&cookies, "# Netscape HTTP Cookie File\n").unwrap();
+
+        let mut settings = Settings::default();
+        settings.cookies_mode = "file".into();
+        settings.cookies_file = cookies.to_string_lossy().to_string();
+
+        let args = build(
+            &sample(false, "best"),
+            &settings,
+            &tools(),
+            Path::new("/tmp/r"),
+        );
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--cookies" && w[1] == cookies.to_string_lossy()));
+        let _ = std::fs::remove_file(&cookies);
     }
 
     #[test]

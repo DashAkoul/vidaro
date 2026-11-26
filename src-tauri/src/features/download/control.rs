@@ -112,6 +112,10 @@ pub async fn retry(app: &AppHandle, queue: Arc<Queue>, inner: Arc<ItemInner>) {
     inner.with_item(|item| {
         item.output_path = None;
         item.error = None;
+        // A manual retry is a fresh start: the user asked now, so neither the
+        // attempt budget nor a pending automatic retry should apply.
+        item.attempts = 0;
+        item.retry_at = None;
     });
     set_status(app, &queue, &inner, ItemStatus::Queued, None);
     spawn_run(app, queue, inner);

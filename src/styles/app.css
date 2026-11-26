@@ -1502,3 +1502,8 @@ input, textarea, select {
   margin: 5px 8px;
   background: var(--border-soft);
 }
+
+/* ============ Automatic retry note ============ */
+.retry-note {
+  color: var(--warn);
+}

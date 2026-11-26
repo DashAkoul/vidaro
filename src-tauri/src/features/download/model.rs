@@ -65,6 +65,12 @@ pub struct Item {
     pub schedule_start: Option<String>, // "HH:MM"
     pub schedule_end: Option<String>,
     pub paused_by: Option<PausedBy>,
+    /// How many automatic retries have already been spent on this item.
+    #[serde(default)]
+    pub attempts: u32,
+    /// When the next automatic retry is due (epoch ms), if one is scheduled.
+    #[serde(default)]
+    pub retry_at: Option<i64>,
 }
 
 impl Item {
@@ -76,6 +82,8 @@ impl Item {
         self.downloaded_bytes = 0;
         self.stage = Stage::Download;
         self.error = None;
+        self.attempts = 0;
+        self.retry_at = None;
     }
 }
 

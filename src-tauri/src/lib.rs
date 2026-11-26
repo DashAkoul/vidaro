@@ -123,6 +123,7 @@ pub fn run() {
             features::tools::commands::ensure_binaries,
             features::tools::commands::update_ytdlp,
             features::tools::commands::open_tools_folder,
+            features::tools::commands::test_connection,
             // metadata
             features::metadata::commands::fetch_info,
             features::metadata::commands::cancel_fetch,

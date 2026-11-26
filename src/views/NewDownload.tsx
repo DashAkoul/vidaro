@@ -123,9 +123,27 @@ export default function NewDownload() {
     }
   }, [info]);
 
+  /// Enough data to offer the download options even if the metadata fetch
+  /// failed (for example on a bot check): the preview supplies the title and
+  /// the standard list supplies the qualities. The queue retries on its own.
+  const fallbackVideo: InfoResult | null =
+    !info && detected?.kind === "video"
+      ? {
+          kind: "video",
+          id: detected.videoId ?? "",
+          title: preview?.title ?? detected.videoId ?? "Untitled",
+          duration: null,
+          thumbnail: preview?.thumbnail ?? null,
+          uploader: preview?.uploader ?? null,
+          heights: STANDARD_HEIGHTS,
+        }
+      : null;
+
+  const active: InfoResult | null = info ?? fallbackVideo;
+
   const heights = useMemo(
-    () => (info?.kind === "video" ? info.heights : STANDARD_HEIGHTS),
-    [info],
+    () => (active?.kind === "video" ? active.heights : STANDARD_HEIGHTS),
+    [active],
   );
 
   async function chooseDir(): Promise<string> {
@@ -148,7 +166,8 @@ export default function NewDownload() {
   }
 
   async function addToQueue() {
-    if (!info) return;
+    const source = info ?? fallbackVideo;
+    if (!source) return;
 
     let destination = dir;
     if (!destination) {
@@ -161,9 +180,9 @@ export default function NewDownload() {
     setNotice(null);
 
     const entries: { videoId: string; title: string; url: string; index: number | null }[] =
-      info.kind === "video"
-        ? [{ videoId: info.id, title: info.title, url: url.trim(), index: null }]
-        : info.entries
+      source.kind === "video"
+        ? [{ videoId: source.id, title: source.title, url: url.trim(), index: null }]
+        : source.entries
             .filter((entry) => selected.has(entry.index))
             .map((entry: VideoEntry) => ({
               videoId: entry.id,
@@ -181,10 +200,10 @@ export default function NewDownload() {
       await enqueueBatch({
         items: entries,
         dir: destination,
-        batchName: info.kind === "collection" ? info.title : "",
+        batchName: source.kind === "collection" ? source.title : "",
         quality,
         audioOnly,
-        numbering: info.kind === "collection",
+        numbering: source.kind === "collection",
         scheduleStart: scheduleStart || undefined,
         scheduleEnd: scheduleEnd || undefined,
       });
@@ -246,8 +265,8 @@ export default function NewDownload() {
     }
   }
 
-  const isCollection = info?.kind === "collection";
-  const selectedCount = isCollection ? selected.size : info ? 1 : 0;
+  const isCollection = active?.kind === "collection";
+  const selectedCount = isCollection ? selected.size : active ? 1 : 0;
 
   return (
     <div className="view">
@@ -332,9 +351,24 @@ export default function NewDownload() {
       {error && (
         <div className="error-box">
           {t("fetchFailed")} <code>{error}</code>
+          {fallbackVideo && (
+            <div className="muted small" style={{ marginTop: 6 }}>
+              {t("fetchFailedHint")}
+            </div>
+          )}
         </div>
       )}
       {notice && <div className="notice-box">{notice}</div>}
+
+      {!info && preview && (
+        <div className="video-card">
+          {preview.thumbnail && <img className="thumb" src={preview.thumbnail} alt="" />}
+          <div className="video-meta">
+            <div className="video-title">{preview.title}</div>
+            <div className="muted small">{preview.uploader}</div>
+          </div>
+        </div>
+      )}
 
       {info?.kind === "video" && (
         <div className="video-card">
@@ -400,7 +434,7 @@ export default function NewDownload() {
         </div>
       )}
 
-      {info && (
+      {active && (
         <div className="options-panel">
           <div className="option">
             <span className="option-label">{t("format")}</span>

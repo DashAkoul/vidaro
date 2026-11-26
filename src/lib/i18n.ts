@@ -138,6 +138,10 @@ const en = {
   chooseCookies: "Choose file",
   savedSession: "Saved session",
   importSession: "Import session from browser",
+  pasteCookies: "Paste cookies.txt",
+  pasteCookiesHint:
+    "Works with any browser and any machine: export youtube.com cookies with a browser extension, open the file in a text editor and paste its contents here.",
+  savePaste: "Save cookies",
   importingSession: "Importing…",
   sessionReady: "{n} signed-in cookies saved",
   sessionMissing: "not imported yet",
@@ -187,6 +191,8 @@ const en = {
   installing: "Installing {tool}…",
 
   fetchFailed: "Failed to fetch info:",
+  fetchFailedHint:
+    "The video can still be queued: choose a quality below and press Add. Vidaro keeps retrying and finishes it as soon as YouTube lets the request through.",
   noSelection: "Select video(s) first.",
   eta: "ETA {v}",
   error: "Error",
@@ -337,6 +343,10 @@ const fa: Record<keyof typeof en, string> = {
   chooseCookies: "انتخاب فایل",
   savedSession: "نشست ذخیره‌شده",
   importSession: "ورود نشست از مرورگر",
+  pasteCookies: "چسباندن cookies.txt",
+  pasteCookiesHint:
+    "با هر مرورگر و هر سیستمی کار می‌کند: کوکی‌های youtube.com را با یک افزونه خروجی بگیر، فایل را در ویرایشگر متن باز کن و محتوایش را اینجا بچسبان.",
+  savePaste: "ذخیره کوکی‌ها",
   importingSession: "در حال ورود…",
   sessionReady: "{n} کوکی ورود ذخیره شد",
   sessionMissing: "هنوز وارد نشده",
@@ -386,6 +396,8 @@ const fa: Record<keyof typeof en, string> = {
   installing: "در حال نصب {tool}…",
 
   fetchFailed: "دریافت اطلاعات ناموفق بود:",
+  fetchFailedHint:
+    "با این حال می‌توانی ویدیو را به صف اضافه کنی: کیفیت را پایین‌تر انتخاب کن و «افزودن» را بزن. Vidaro خودش دوباره تلاش می‌کند و به‌محض عبور از محدودیت یوتیوب کاملش می‌کند.",
   noSelection: "ابتدا ویدیو(ها) را انتخاب کنید.",
   eta: "باقی‌مانده {v}",
   error: "خطا",

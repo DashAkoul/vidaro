@@ -164,7 +164,7 @@ pub fn friendly(raw: &str) -> String {
     match classify(&message) {
         Failure::BotCheck => "YouTube asked to confirm you are not a bot. This is a block on your network/IP, not on the video. Add cookies in Settings → YouTube account, switch to another VPN or proxy server, or wait a few minutes — Vidaro will retry automatically."
             .to_string(),
-        Failure::Unavailable => "This video is unavailable — it may be deleted, private, or blocked in your region."
+        Failure::Unavailable => "This video is unavailable — it may be deleted, private, region-blocked, or your YouTube session has expired (Settings → YouTube account)."
             .to_string(),
         Failure::Tool => {
             "yt-dlp could not run. Open Settings → Download tools and reinstall it."

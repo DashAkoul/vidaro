@@ -54,9 +54,27 @@ async fn download(app: &AppHandle, tool: &str, url: &str, dest: &Path) -> AppRes
         std::fs::create_dir_all(parent)?;
     }
 
-    let client = reqwest::Client::builder()
+    let mut builder = reqwest::Client::builder()
         .user_agent(USER_AGENT)
-        .build()?;
+        .connect_timeout(std::time::Duration::from_secs(20));
+
+    // GitHub is filtered on some networks while a proxy is available; without
+    // this the tool download fails even though downloads would work.
+    if let Some(config) = crate::core::state::config_opt(app) {
+        match config.get().proxy_setting() {
+            crate::core::config::ProxySetting::Url(url) => {
+                if let Ok(proxy) = reqwest::Proxy::all(&url) {
+                    builder = builder.proxy(proxy);
+                }
+            }
+            crate::core::config::ProxySetting::Direct => {
+                builder = builder.no_proxy();
+            }
+            crate::core::config::ProxySetting::Inherit => {}
+        }
+    }
+
+    let client = builder.build()?;
     let tmp = dest.with_extension("download");
 
     // A 23 MB helper download over a flaky link used to leave a `.download`

@@ -77,6 +77,13 @@ fn find(app: &AppHandle, paths: &AppPaths, base: &str) -> PathBuf {
             return candidate;
         }
     }
+    // Fall back to a system-wide install (scoop, choco, brew, apt, pipx...).
+    // Using what the machine already has avoids a GitHub download entirely,
+    // which matters on networks where GitHub is filtered or slow.
+    if let Some(system) = which(&file) {
+        return system;
+    }
+
     // Nothing found: report the canonical install location.
     paths.bin_dir.join(file)
 }

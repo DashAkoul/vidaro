@@ -1552,3 +1552,16 @@ input, textarea, select {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.cookies-paste {
+  width: calc(100% - 24px);
+  margin: 8px 0 10px 24px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  resize: vertical;
+}

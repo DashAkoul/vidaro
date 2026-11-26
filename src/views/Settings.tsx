@@ -9,6 +9,7 @@ import {
   exportData,
   importBrowserCookies,
   importData,
+  saveCookiesText,
   sessionStatus,
   onToolsProgress,
   openToolsFolder,
@@ -28,6 +29,8 @@ export default function Settings() {
   const [progress, setProgress] = useState<ToolsProgress | null>(null);
   const [report, setReport] = useState<ConnectionReport | null>(null);
   const [session, setSession] = useState<SessionStatus | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
   const toastTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -118,6 +121,22 @@ export default function Settings() {
     try {
       const next = await importBrowserCookies(settings.cookiesBrowser);
       setSession(next);
+      flash(t("saved"));
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function savePastedCookies() {
+    setBusy("paste");
+    setError(null);
+    try {
+      const next = await saveCookiesText(pasteText);
+      setSession(next);
+      setPasteOpen(false);
+      setPasteText("");
       flash(t("saved"));
     } catch (e) {
       setError(describeError(e));
@@ -540,6 +559,40 @@ export default function Settings() {
         <div className="muted small" style={{ marginInlineStart: 24 }}>
           {t("sessionHint")}
         </div>
+
+        <div className="settings-row">
+          <span>{t("pasteCookies")}</span>
+          <button
+            className="ghost-btn"
+            onClick={() => setPasteOpen((open) => !open)}
+          >
+            {pasteOpen ? t("cancel") : t("pasteCookies")}
+          </button>
+        </div>
+        {pasteOpen && (
+          <>
+            <div className="muted small" style={{ marginInlineStart: 24 }}>
+              {t("pasteCookiesHint")}
+            </div>
+            <textarea
+              className="cookies-paste"
+              value={pasteText}
+              onChange={(event) => setPasteText(event.target.value)}
+              spellCheck={false}
+              dir="ltr"
+              rows={6}
+            />
+            <div style={{ marginInlineStart: 24 }}>
+              <button
+                className="btn secondary"
+                onClick={() => void savePastedCookies()}
+                disabled={busy !== null || !pasteText.trim()}
+              >
+                {t("savePaste")}
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="settings-section">

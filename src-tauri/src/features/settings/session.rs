@@ -182,6 +182,57 @@ pub async fn import_browser_cookies(
     Ok(status(&app))
 }
 
+/// Store a cookie file the user pasted or copied in by hand.
+///
+/// This is the browser-independent path: a Netscape `cookies.txt` exported with
+/// any extension, on any machine, for any browser. The app validates that the
+/// text really contains a signed-in session before switching to it, so a wrong
+/// paste fails loudly instead of silently breaking downloads.
+#[tauri::command]
+pub fn save_cookies_text(
+    app: AppHandle,
+    config: tauri::State<'_, std::sync::Arc<ConfigStore>>,
+    text: String,
+) -> AppResult<SessionStatus> {
+    let path = session_file(&app)
+        .ok_or_else(|| AppError::Tool("application paths not available".into()))?;
+
+    if !text.contains('\t') || !text.to_ascii_lowercase().contains("youtube.com") {
+        return Err(AppError::Invalid(
+            "this does not look like a Netscape cookies.txt file (tab-separated, with youtube.com entries)".into(),
+        ));
+    }
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Keep only real cookie lines: comments are allowed, blank lines dropped.
+    let cleaned: String = text
+        .lines()
+        .filter(|line| line.starts_with('#') || line.split('\t').count() >= 7)
+        .collect::<Vec<_>>()
+        .join("
+");
+    std::fs::write(&path, format!("{cleaned}
+"))?;
+
+    let imported = count_auth_cookies(&path);
+    if imported == 0 {
+        let _ = std::fs::remove_file(&path);
+        return Err(AppError::Invalid(
+            "the file has no signed-in YouTube cookies (SID/SAPISID). Export it while logged in to youtube.com.".into(),
+        ));
+    }
+
+    config.update(|current| {
+        current.cookies_mode = "file".into();
+        current.cookies_file = path.to_string_lossy().to_string();
+    })?;
+
+    Ok(status(&app))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

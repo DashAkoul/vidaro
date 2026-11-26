@@ -62,10 +62,16 @@ does help is changing *who* is asking or *how*.
    (Chrome is often locked or DPAPI-encrypted), export a `cookies.txt` with a
    browser extension and choose *cookies.txt* instead. This is the only fix
    that works without changing the network.
-2. **Switch proxy/VPN server** — a new egress IP is usually enough. Configure
+2. **Import the session once** — Settings → YouTube account → *Import session
+   from browser*. Vidaro copies the signed-in cookies into its own
+   `session/cookies.txt` and uses that file from then on, so the browser may be
+   closed, updated or uninstalled. Use this when downloads work with the
+   browser open and stop working when it is closed: closing a browser can
+   discard the session cookies yt-dlp was reading live.
+3. **Switch proxy/VPN server** — a new egress IP is usually enough. Configure
    it in Settings → Proxy; Vidaro passes it to both metadata fetches and
    downloads.
-3. **Wait** — the block is temporary and lifts on its own. Vidaro now retries
+4. **Wait** — the block is temporary and lifts on its own. Vidaro now retries
    transient failures automatically with a growing delay and a different
    player client, so a block of a few minutes no longer means a failed item.
 
@@ -81,6 +87,15 @@ Retries are not used for permanent failures: a deleted, private or
 region-blocked video is reported immediately.
 
 **Retry failed** in the queue toolbar re-queues every errored item at once.
+
+## A link takes several seconds before anything happens
+
+Recognition itself is instant: the type and video id are read from the URL in
+the UI while you are still typing or right after pasting. The title and
+thumbnail follow from oEmbed in about a second, while yt-dlp is still starting
+up — on a slow link the full format list takes 10–20 seconds, so the app no
+longer makes you wait for it to start a download: **Download now** queues the
+video with the best quality immediately.
 
 ## Downloads finish but the file is "missing"
 

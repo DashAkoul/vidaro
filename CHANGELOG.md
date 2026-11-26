@@ -84,6 +84,27 @@ and cookies, a real download completed inside the app.
   now retries and continues from the bytes already on disk. A dropped
   connection used to leave a `.download` file behind and a failed install,
   which is another way the app could "just not work" on a slow link.
+- **Instant link recognition.** Pasting a URL no longer waits for a spawned
+  process: `detect_url` classifies the link locally, the UI shows
+  "video / playlist / channel" plus the id straight away, and oEmbed fills in
+  the title, channel and thumbnail in about a second while yt-dlp is still
+  starting. Measured on the same machine: 13–17 s for the full yt-dlp fetch
+  versus 1.3–1.7 s for the preview.
+- **Download now.** A single video can be queued immediately with the best
+  quality, without waiting for the format list. The previous flow put a
+  10-second metadata fetch between the user and the download.
+- **Metadata cache.** A fetch result is reused for ten minutes, so re-pasting
+  the same link does not start yt-dlp again.
+- **Saved session ("import once").** The browser's cookie jar can be copied
+  into `session/cookies.txt` and used from then on, so closing, updating or
+  uninstalling the browser no longer breaks downloads. Settings shows how many
+  signed-in cookies were captured.
+- **Parallel fragments.** `--concurrent-fragments 4` downloads fragmented
+  formats in parallel, which is the difference between minutes and tens of
+  minutes on a slow link.
+- **ffmpeg is optional.** Without it Vidaro asks for a single progressive
+  stream instead of an unmuxable video+audio pair, and keeps audio in its
+  native container instead of failing the MP3 conversion.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) documents the diagnosis
   and the order in which the workarounds actually help.
 

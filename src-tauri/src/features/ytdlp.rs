@@ -67,11 +67,13 @@ pub fn classify(raw: &str) -> Failure {
         return Failure::Unavailable;
     }
 
-    const NETWORK: [&str; 10] = [
+    const NETWORK: [&str; 12] = [
         "failed to resolve",
         "getaddrinfo",
         "connection reset",
         "connection refused",
+        "actively refused",
+        "connection could not be made",
         "timed out",
         "timeout",
         "ssl",
@@ -169,13 +171,32 @@ pub fn friendly(raw: &str) -> String {
                 .to_string()
         }
         Failure::Network => format!(
-            "{message} — the connection to YouTube failed. Check your proxy/VPN or try again."
+            "{} — the connection failed. Check your proxy/VPN or try again.",
+            shorten(&message, 200)
         ),
         Failure::Degraded => format!(
-            "{message} — YouTube answered with an incomplete player response. This is usually temporary."
+            "{} — YouTube answered with an incomplete player response. This is usually temporary.",
+            shorten(&message, 200)
         ),
-        Failure::Unknown => message,
+        Failure::Unknown => shorten(&message, 300),
     }
+}
+
+/// Trim a technical sentence to something a queue row can display.
+///
+/// yt-dlp nests transport errors (`TransportError(...)` inside `HTTPConnection(...)`),
+/// which produced 400-character rows that told the user nothing new.
+fn shorten(message: &str, limit: usize) -> String {
+    if message.chars().count() <= limit {
+        return message.to_string();
+    }
+    let cut: String = message.chars().take(limit).collect();
+    // Prefer a word boundary so the text does not end mid-word.
+    let trimmed = match cut.rfind(' ') {
+        Some(index) if index > limit / 2 => &cut[..index],
+        _ => &cut[..],
+    };
+    format!("{}…", trimmed.trim_end_matches([' ', ',', '.']))
 }
 
 /// Arguments that give yt-dlp a signed-in YouTube session.
@@ -273,6 +294,20 @@ mod tests {
     #[test]
     fn empty_stderr_returns_empty() {
         assert_eq!(best_error_line(&[]), "");
+    }
+
+    #[test]
+    fn long_transport_errors_are_shortened() {
+        let raw = format!(
+            "{} (caused by TransportError(\"{}\"))",
+            "Unable to download webpage: HTTPConnection reported a failure".repeat(3),
+            "No connection could be made because the target machine actively refused it".repeat(2)
+        );
+        let friendly = friendly(&raw);
+        assert!(friendly.chars().count() < 330, "{} chars", friendly.chars().count());
+        assert!(friendly.contains('…'));
+        // Shortening must not destroy the classification.
+        assert!(!friendly.is_empty());
     }
 
     #[test]

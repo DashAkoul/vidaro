@@ -22,6 +22,7 @@ Tauri 2 (Rust) + React + TypeScript.
 - **Clipboard detection** — copying a YouTube link offers a one-click download
 - **System tray** — closing the window keeps the app running
 - **Hidden autostart** — Vidaro starts in the tray at boot without opening a window
+- **Survives YouTube blocks** — cookies, automatic retries with a growing delay, player-client rotation, and a connection self-test
 - **Bilingual UI** — Persian (RTL) and English, dark/light/system themes
 - **Self-provisioning tools** — yt-dlp and ffmpeg are fetched on first run, keeping the installer small
 - **Browser extension** — send the current page to Vidaro from Chrome, Edge or Firefox
@@ -203,6 +204,17 @@ unaffected.
 workflow exports them only when `APPLE_CERTIFICATE` exists (an empty value would
 make the bundler attempt an invalid signature); Tauri then signs and notarizes
 the `.app` and `.dmg`.
+
+---
+
+## Troubleshooting
+
+If a download fails with "Sign in to confirm you're not a bot", that is
+YouTube challenging your network, not a broken link. **Settings → Reliability
+→ Test connection** names the failing layer, and
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) explains why swapping the
+extractor does not help and what does — cookies first, then a different proxy
+or a short wait. Transient failures are retried automatically.
 
 ---
 

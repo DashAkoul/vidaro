@@ -8,6 +8,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 | Version | Date | Headline |
 | --- | --- | --- |
+| [2.2.0](#220--2026-11-26) | 2026-11-26 | Survive YouTube bot checks; keep non-Latin file names |
 | [2.1.1](#211--2026-11-07) | 2026-11-07 | Show the real fetch error; make proxy modes work |
 | [2.1.0](#210--2026-11-04) | 2026-11-04 | Browser extension for Chrome and Firefox |
 | [2.0.7](#207--2026-11-04) | 2026-11-04 | Resumable downloads, right-click menu |
@@ -21,6 +22,63 @@ versioning follows [Semantic Versioning](https://semver.org/).
 | [1.1.0](#110--2025-09-27) | 2025-09-27 | Pre-rewrite release |
 | [0.2.0](#020--2025-09-20) | 2025-09-20 | Early prototype |
 | [0.1.0](#010--2025-09-13) | 2025-09-13 | First release |
+
+---
+
+## [2.2.0] — 2026-11-26
+
+Makes the app survive the one failure that produced almost every complaint:
+"YouTube asked to confirm you're not a bot", which arrives in bursts and made
+Vidaro look like it worked only sometimes.
+
+### The evidence
+
+A real queue from a machine that had been using Vidaro held **36 items: 22
+failed, 14 completed**, and every failure was the bot check. The block is
+answered by YouTube's servers, not by the extractor: querying InnerTube
+directly from the blocked network returned `LOGIN_REQUIRED` for `TVHTML5`,
+`WEB`, `MWEB` and `ANDROID_VR` alike. Replacing yt-dlp with another extractor
+would hit the same wall while losing its format and signature handling, so the
+work went into mitigation instead.
+
+### Added
+
+- **Cookies** — Settings → YouTube account can pass a signed-in session to
+  yt-dlp, either read from a browser (`--cookies-from-browser`) or from an
+  exported `cookies.txt`. This is the only dependable cure for the bot check;
+  reading Chrome's database can fail with DPAPI/lock errors, and the UI now
+  says so and suggests the file instead.
+- **Automatic retries** for transient failures (bot check, degraded player
+  response, network). The item goes back to the queue with a persisted
+  `retry_at`, the delay grows exponentially from a configurable base (5 min,
+  four attempts by default) and the state survives a restart.
+- **Player-client rotation** on retries (`web_safari`, `tv`, `android_vr`,
+  `mweb`) for downloads and metadata, instead of repeating the exact request
+  that just failed.
+- **Test connection** in Settings: probes one known video with the current
+  proxy and cookie settings and reports whether the problem is the tools, the
+  network or YouTube's bot check, including the age of the installed yt-dlp.
+- **Retry failed** in the queue toolbar re-queues every errored item at once.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) documents the diagnosis
+  and the order in which the workarounds actually help.
+
+### Fixed
+
+- **Non-Latin titles destroyed the recorded file path.** A Persian title was
+  stored as `  ADHD  .mp4` because yt-dlp printed its log line in the hidden
+  console code page and the path was scraped from that text. Helper processes
+  now run with UTF-8 stdio (`PYTHONUTF8`, `PYTHONIOENCODING`), and the final
+  path comes from `--print-to-file after_move:filepath`, which is written as
+  UTF-8 and reflects a merge rename. "Open file" and "Show in folder" work for
+  Persian, Arabic and emoji titles again.
+- Queue failures now show an actionable sentence instead of raw yt-dlp text,
+  and items waiting for a retry are marked in the list.
+
+### Changed
+
+- Error classification (transient vs permanent, bot check vs network vs tools)
+  lives in one module shared by the metadata fetch and the download runner, so
+  the retry policy and the UI can no longer disagree.
 
 ---
 

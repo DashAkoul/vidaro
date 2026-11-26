@@ -15,6 +15,28 @@ check, not a bug in how Vidaro reads links.
 
 The same reason is written next to any failed item in the queue.
 
+### Two separate walls
+
+The bot check is only the first. Once a session is accepted, YouTube returns
+formats only if its player challenge can be evaluated — and that challenge is
+JavaScript:
+
+```
+[jsc] JS Challenge Providers: bun (unavailable), deno (unavailable), node (unavailable)
+WARNING: n challenge solving failed: Some formats may be missing
+ERROR: [youtube] ...: No video formats found!
+```
+
+Vidaro handles this on its own: it uses a managed Deno, or any `deno`/`node`/
+`bun`/`qjs` already installed, and installs Deno when none is present. The
+runtime used is shown in **Settings → Download tools**.
+
+The other half of this failure was the age of the helper itself. Build
+`2026.10.26` crashed inside its own challenge solver
+(`a.addOnDisposeCallback is not a function`) while `2026.11.23` succeeded. A
+yt-dlp older than 30 days is therefore refreshed automatically at startup;
+**Update yt-dlp** forces it.
+
 ### Why it is not a yt-dlp problem
 
 The challenge is answered by YouTube's servers before any extractor sees the
@@ -70,6 +92,10 @@ the path with `--print-to-file after_move:filepath`, which is written as UTF-8
 and reflects the real file after a merge rename.
 
 ## Tools will not install
+
+Helper downloads are resumable: an interrupted install continues from the
+bytes already on disk, and the next launch retries it.
+
 
 `yt-dlp` and `ffmpeg` are downloaded on first run from their official release
 pages. On a filtered network that download can fail. Use **Settings → Download

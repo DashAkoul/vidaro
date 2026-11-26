@@ -24,7 +24,7 @@ Tauri 2 (Rust) + React + TypeScript.
 - **Hidden autostart** — Vidaro starts in the tray at boot without opening a window
 - **Survives YouTube blocks** — cookies, automatic retries with a growing delay, player-client rotation, and a connection self-test
 - **Bilingual UI** — Persian (RTL) and English, dark/light/system themes
-- **Self-provisioning tools** — yt-dlp and ffmpeg are fetched on first run, keeping the installer small
+- **Self-provisioning tools** — yt-dlp, ffmpeg and the Deno JavaScript runtime are fetched on first run, keeping the installer small
 - **Browser extension** — send the current page to Vidaro from Chrome, Edge or Firefox
 
 ---

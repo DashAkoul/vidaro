@@ -41,6 +41,20 @@ directly from the blocked network returned `LOGIN_REQUIRED` for `TVHTML5`,
 would hit the same wall while losing its format and signature handling, so the
 work went into mitigation instead.
 
+Passing cookies then exposed a **second, independent** failure: yt-dlp answered
+`No video formats found!`. Its log named the cause:
+
+```
+[jsc] JS Challenge Providers: bun (unavailable), deno (unavailable), node (unavailable)
+WARNING: n challenge solving failed: Some formats may be missing
+```
+
+YouTube's player challenge (`n`/`sig`) is JavaScript, and yt-dlp needs a
+runtime to evaluate it. The build installed on that machine (2026.10.26) also
+crashed inside its bundled solver (`a.addOnDisposeCallback is not a function`);
+2026.11.23 solved the same challenge correctly. With the new build, a runtime
+and cookies, a real download completed inside the app.
+
 ### Added
 
 - **Cookies** — Settings → YouTube account can pass a signed-in session to
@@ -59,6 +73,17 @@ work went into mitigation instead.
   proxy and cookie settings and reports whether the problem is the tools, the
   network or YouTube's bot check, including the age of the installed yt-dlp.
 - **Retry failed** in the queue toolbar re-queues every errored item at once.
+- **JavaScript runtime management.** Vidaro looks for a managed Deno, then for
+  `deno`, `node`, `bun` or `qjs` on the machine, and passes the result to
+  yt-dlp. When nothing is found it installs Deno into the managed tools
+  folder, because without a runtime YouTube returns no formats at all.
+- **Automatic yt-dlp refresh.** A build older than 30 days is replaced in the
+  background at startup. The stale build was the root cause of the
+  `n`-challenge failure, and no user should have to notice that.
+- **Resumable helper downloads.** Installing or updating yt-dlp/ffmpeg/Deno
+  now retries and continues from the bytes already on disk. A dropped
+  connection used to leave a `.download` file behind and a failed install,
+  which is another way the app could "just not work" on a slow link.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) documents the diagnosis
   and the order in which the workarounds actually help.
 

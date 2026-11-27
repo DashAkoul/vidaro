@@ -211,11 +211,18 @@ the `.app` and `.dmg`.
 ## Troubleshooting
 
 If a download fails with "Sign in to confirm you're not a bot", that is
-YouTube challenging your network, not a broken link. **Settings → Reliability
-→ Test connection** names the failing layer, and
-[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) explains why swapping the
-extractor does not help and what does — cookies first, then a different proxy
-or a short wait. Transient failures are retried automatically.
+YouTube challenging your network — the filter breaker / proxy you are on —
+not a broken link. **Change the filter breaker or proxy first**: a different
+server usually clears it within a minute, and **Settings → Reliability → Test
+connection** verifies before you retry. Transient failures are retried
+automatically, so many blocks also pass on their own.
+
+If changing the filter breaker does not help — the block follows every server
+you try, or you are on a network you cannot change — give Vidaro a signed-in
+session once: Settings → YouTube account → **Import session from browser**
+(Firefox is the only readable one on Windows) or **Paste cookies.txt**, and
+afterwards no browser is needed at all. The details and every other symptom
+are in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ---
 

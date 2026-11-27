@@ -46,7 +46,7 @@ cp src-tauri/icons/128x128.png "$HOME_B/apk/vidaro/vidaro-128.png"
 cp LICENSE "$HOME_B/apk/vidaro/LICENSE" 2>/dev/null || true
 
 cat > "$HOME_B/apk/vidaro/APKBUILD" <<APKEOF
-# Maintainer: DashAkoul <https://github.com/DashAkoul/vidaro>
+# Maintainer: DashAkoul <dashakoul@users.noreply.github.com>
 pkgname=vidaro
 pkgver=${VERSION}
 pkgrel=0

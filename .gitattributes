@@ -1,7 +1,2 @@
-* text=auto eol=lf
-
-*.png binary
-*.ico binary
-*.icns binary
-*.exe binary
-*.dll binary
+#!/bin/ash scripts: keep LF endings so they run inside Linux containers
+*.sh text eol=lf

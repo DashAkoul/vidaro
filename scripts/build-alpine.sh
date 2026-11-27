@@ -15,7 +15,10 @@ apk add --no-cache   build-base pkgconf linux-headers openssl-dev   gtk+3.0-dev 
 curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
 export PATH="$HOME/.cargo/bin:$PATH"
 rustc --version
-export RUSTFLAGS="-C link-args=-L/usr/lib"
+
+# The musl target defaults to a static PIE, which cannot link the shared
+# GTK/WebKit libraries this app needs — force dynamic linking instead.
+export RUSTFLAGS="-C target-feature=-crt-static"
 
 echo "== building the frontend"
 npm ci

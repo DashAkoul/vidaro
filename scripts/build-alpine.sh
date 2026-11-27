@@ -8,11 +8,13 @@
 set -e
 
 echo "== installing the build toolchain"
-apk add --no-cache \
-  build-base pkgconf linux-headers openssl-dev \
-  gtk+3.0-dev webkit2gtk-4.1-dev \
-  nodejs npm rust cargo zstd \
-  abuild sudo git
+apk add --no-cache   build-base pkgconf linux-headers openssl-dev   gtk+3.0-dev webkit2gtk-4.1-dev   nodejs npm zstd curl   abuild sudo git
+
+# The distro's Rust (1.83 in Alpine 3.21) cannot parse crates that use
+# edition 2024, so install the current stable through rustup instead.
+curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+export PATH="$HOME/.cargo/bin:$PATH"
+rustc --version
 
 echo "== building the frontend"
 npm ci

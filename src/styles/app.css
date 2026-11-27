@@ -967,6 +967,40 @@ input:focus {
   gap: 10px;
 }
 
+.settings-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 2px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.settings-tab {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.settings-tab:hover {
+  color: var(--foreground);
+}
+
+.settings-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
 .settings-section {
   background: var(--card);
   border: 1px solid var(--border);

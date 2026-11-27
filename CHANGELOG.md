@@ -8,6 +8,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 | Version | Date | Headline |
 | --- | --- | --- |
+| [2.2.1](#221--2026-11-27) | 2026-11-27 | Settings organised into tabs; honest browser-cookie diagnosis |
 | [2.2.0](#220--2026-11-26) | 2026-11-26 | Survive YouTube bot checks; keep non-Latin file names |
 | [2.1.1](#211--2026-11-07) | 2026-11-07 | Show the real fetch error; make proxy modes work |
 | [2.1.0](#210--2026-11-04) | 2026-11-04 | Browser extension for Chrome and Firefox |
@@ -22,6 +23,32 @@ versioning follows [Semantic Versioning](https://semver.org/).
 | [1.1.0](#110--2025-09-27) | 2025-09-27 | Pre-rewrite release |
 | [0.2.0](#020--2025-09-20) | 2025-09-20 | Early prototype |
 | [0.1.0](#010--2025-09-13) | 2025-09-13 | First release |
+
+---
+
+## [2.2.1] — 2026-11-27
+
+Small quality-of-life release built from a real session where every import
+path was tried.
+
+### Fixed
+
+- **Settings is organised into tabs.** The page had grown to nine stacked
+  sections over three screens of scrolling. A sticky tab bar now splits it
+  into *General*, *YouTube account*, *Network*, *Tools & formats*,
+  *Downloads* and *Data*, and the error box sits directly under the tabs so
+  it is visible on every tab.
+
+### Changed
+
+- **Honest diagnosis when browser cookies cannot be read.** Chrome and Edge
+  (version 127 and later) encrypt their cookie store with a Windows
+  app-bound key that only the browser itself can unwrap — yt-dlp fails with
+  `Failed to decrypt with DPAPI` and so does Vidaro. The import error now
+  names this cause for those browsers instead of the generic "keep the
+  browser open" advice, Settings warns before the attempt, and a new
+  *Sign in to YouTube* button opens youtube.com in the selected browser so
+  the sign-in can happen where the cookies are readable.
 
 ---
 

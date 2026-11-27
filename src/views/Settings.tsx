@@ -20,6 +20,18 @@ import {
 import { useI18n } from "../lib/i18n";
 import type { ConnectionReport, SessionStatus, ToolsProgress } from "../lib/types";
 
+/// The nine settings sections grouped into six tabs, in display order.
+const GROUPS = [
+  { id: "general", label: "settingsTabGeneral" },
+  { id: "youtube", label: "settingsTabYouTube" },
+  { id: "network", label: "settingsTabNetwork" },
+  { id: "tools", label: "settingsTabTools" },
+  { id: "downloads", label: "settingsTabDownloads" },
+  { id: "data", label: "settingsTabData" },
+] as const;
+
+type SettingsGroup = (typeof GROUPS)[number]["id"];
+
 /// Chromium-based browsers encrypt their cookie store with an app-bound key.
 const APP_BOUND_BROWSERS = [
   "chrome",
@@ -40,6 +52,7 @@ export default function Settings() {
   const [progress, setProgress] = useState<ToolsProgress | null>(null);
   const [report, setReport] = useState<ConnectionReport | null>(null);
   const [session, setSession] = useState<SessionStatus | null>(null);
+  const [group, setGroup] = useState<SettingsGroup>("general");
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const toastTimer = useRef<number | null>(null);
@@ -210,6 +223,28 @@ export default function Settings() {
 
   return (
     <div className="view settings-view">
+      <div className="settings-tabs" role="tablist">
+        {GROUPS.map((g) => (
+          <button
+            key={g.id}
+            role="tab"
+            aria-selected={group === g.id}
+            className={`settings-tab ${group === g.id ? "active" : ""}`}
+            onClick={() => setGroup(g.id)}
+          >
+            {t(g.label)}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="error-box">
+          <b>{t("error")}</b>
+          <code>{error}</code>
+        </div>
+      )}
+
+      {group === "general" && (
       <section className="settings-section">
         <h3>{t("settingsGeneral")}</h3>
 
@@ -293,7 +328,9 @@ export default function Settings() {
           />
         </div>
       </section>
+      )}
 
+{group === "general" && (
       <section className="settings-section">
         <h3>{t("behavior")}</h3>
 
@@ -337,7 +374,9 @@ export default function Settings() {
           {t("autostartHint")}
         </div>
       </section>
+      )}
 
+{group === "tools" && (
       <section className="settings-section">
         <h3>{t("tools")}</h3>
 
@@ -388,7 +427,9 @@ export default function Settings() {
           </div>
         )}
       </section>
+      )}
 
+{group === "tools" && (
       <section className="settings-section">
         <h3>{t("format")}</h3>
 
@@ -430,7 +471,9 @@ export default function Settings() {
           <span>{t("embedThumbnail")}</span>
         </label>
       </section>
+      )}
 
+{group === "network" && (
       <section className="settings-section">
         <h3>{t("proxy")}</h3>
 
@@ -483,7 +526,9 @@ export default function Settings() {
           {t("proxyNote")}
         </div>
       </section>
+      )}
 
+{group === "youtube" && (
       <section className="settings-section">
         <h3>{t("account")}</h3>
 
@@ -619,7 +664,9 @@ export default function Settings() {
           </>
         )}
       </section>
+      )}
 
+{group === "downloads" && (
       <section className="settings-section">
         <h3>{t("reliability")}</h3>
 
@@ -698,7 +745,9 @@ export default function Settings() {
           </div>
         )}
       </section>
+      )}
 
+{group === "downloads" && (
       <section className="settings-section">
         <h3>{t("scheduler")}</h3>
 
@@ -737,7 +786,9 @@ export default function Settings() {
           {t("schedulerNote")}
         </div>
       </section>
+      )}
 
+{group === "data" && (
       <section className="settings-section">
         <h3>{t("importExport")}</h3>
         <div className="settings-row">
@@ -749,12 +800,6 @@ export default function Settings() {
           </button>
         </div>
       </section>
-
-      {error && (
-        <div className="error-box">
-          <b>{t("error")}</b>
-          <code>{error}</code>
-        </div>
       )}
 
       {toast && <div className="saved-toast">{toast}</div>}

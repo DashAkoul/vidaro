@@ -1,9 +1,9 @@
 {
   "name": "vidaro",
   "private": true,
-  "version": "2.2.0",
+  "version": "2.2.1",
   "type": "module",
-  "description": "Vidaro — YouTube video, playlist and channel downloader",
+  "description": "Vidaro \u2014 YouTube video, playlist and channel downloader",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

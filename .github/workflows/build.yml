@@ -320,7 +320,7 @@ jobs:
         run: |
           FILES=$(find artifacts -type f -name "*.apk" || true)
           if [ -n "$FILES" ]; then
-            gh release upload "$GITHUB_REF_NAME" $FILES --clobber
+            gh release upload "$GITHUB_REF_NAME" $FILES --clobber --repo "$GITHUB_REPOSITORY"
           else
             echo "No Alpine package this release (musl build failed)."
           fi

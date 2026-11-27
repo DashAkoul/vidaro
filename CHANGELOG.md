@@ -8,6 +8,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 | Version | Date | Headline |
 | --- | --- | --- |
+| [2.2.2](#222--2026-11-27) | 2026-11-27 | Minimal interface, English only, native packages for every Linux family |
 | [2.2.1](#221--2026-11-27) | 2026-11-27 | Settings organised into tabs; honest browser-cookie diagnosis |
 | [2.2.0](#220--2026-11-26) | 2026-11-26 | Survive YouTube bot checks; keep non-Latin file names |
 | [2.1.1](#211--2026-11-07) | 2026-11-07 | Show the real fetch error; make proxy modes work |
@@ -23,6 +24,30 @@ versioning follows [Semantic Versioning](https://semver.org/).
 | [1.1.0](#110--2025-09-27) | 2025-09-27 | Pre-rewrite release |
 | [0.2.0](#020--2025-09-20) | 2025-09-20 | Early prototype |
 | [0.1.0](#010--2025-09-13) | 2025-09-13 | First release |
+
+---
+
+## [2.2.2] — 2026-11-27
+
+### Changed
+
+- **The interface is minimal and modern.** A neutral graphite palette with one
+  calm accent replaces the neon glow and gradients; flatter buttons and cards,
+  quieter sidebar and status bar, consistent radii, lighter typography in both
+  themes.
+- **English only.** The Persian UI language, its dictionary, RTL layout and
+  every translated tray/notification string were removed; the language picker
+  is gone from the top bar and settings.
+- **Every Linux package family is covered.** The release now ships, besides
+  AppImage and `.deb`: `.rpm` (Fedora/RHEL/openSUSE), `.pkg.tar.zst` for
+  Arch-based distros (built by `scripts/package-arch.sh`), a Gentoo `.ebuild`
+  recipe generated from `Cargo.lock` (`scripts/gen-ebuild.sh`), and an Alpine
+  `.apk` compiled against musl in an Alpine 3.21 container
+  (`scripts/build-alpine.sh`).
+
+### Fixed
+
+- README gained real screenshots of the interface.
 
 ---
 

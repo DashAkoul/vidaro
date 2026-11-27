@@ -82,19 +82,10 @@ pub fn spawn(app: AppHandle) {
 fn show_notification(app: &AppHandle, url: &str) {
     use tauri_plugin_notification::NotificationExt;
 
-    let language = crate::core::state::config(app).get().language;
-
-    let (title, body) = if language == "fa" {
-        (
-            "Vidaro",
-            format!("لینک یوتیوب کپی شد — برای دانلود باز کنید\n{url}"),
-        )
-    } else {
-        (
-            "Vidaro",
-            format!("YouTube link detected — open Vidaro to download\n{url}"),
-        )
-    };
+    let (title, body) = (
+        "Vidaro",
+        format!("YouTube link detected — open Vidaro to download\n{url}"),
+    );
 
     let _ = app
         .notification()

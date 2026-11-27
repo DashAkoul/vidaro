@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 
-export type Lang = "fa" | "en";
+export type Lang = "en";
 export type ThemeMode = "system" | "light" | "dark";
 
 const en = {
@@ -91,7 +91,6 @@ const en = {
   settingsTabTools: "Tools & formats",
   settingsTabDownloads: "Downloads",
   settingsTabData: "Data",
-  language: "Language",
   theme: "Theme",
   themeSystem: "System",
   dark: "Dark",
@@ -217,221 +216,8 @@ const en = {
   dismiss: "Dismiss",
 } as const;
 
-const fa: Record<keyof typeof en, string> = {
-  appName: "Vidaro",
-  tabNew: "دانلود جدید",
-  tabQueue: "همه دانلودها",
-  tabDownloading: "در حال دانلود",
-  tabCompleted: "کامل‌شده",
-  tabPaused: "متوقف",
-  tabFailed: "ناموفق",
-  tabHistory: "تاریخچه",
-  tabSettings: "تنظیمات",
+export const dict = { en };
 
-  urlPlaceholder: "لینک ویدیو، پلی‌لیست یا کانال یوتیوب را بچسبانید…",
-  fetchBtn: "دریافت اطلاعات",
-  quickDownload: "همین حالا دانلود کن",
-  fetching: "در حال دریافت…",
-  detected: "نوع تشخیص‌داده‌شده",
-  typeVideo: "تک ویدیو",
-  typePlaylist: "پلی‌لیست",
-  typeChannel: "کانال",
-  kindAuto: "خودکار",
-
-  selectAll: "انتخاب همه",
-  selectNone: "هیچ‌کدام",
-  selected: "{n} ویدیو انتخاب شده",
-  videosCount: "{n} ویدیو",
-  colIndex: "#",
-  colTitle: "عنوان",
-  colDuration: "مدت",
-  truncated: "فقط ۵۰۰۰ ویدیوی اول نمایش داده می‌شود.",
-  by: "سازنده",
-
-  format: "فرمت",
-  videoFormat: "ویدیو (MP4)",
-  audioFormat: "فقط صوت (MP3)",
-  quality: "کیفیت",
-  best: "بهترین کیفیت",
-  destination: "پوشه مقصد",
-  chooseFolder: "انتخاب پوشه",
-  addToQueue: "افزودن به صف ({n})",
-  numberingNote:
-    "ویدیوها به ترتیب پلی‌لیست (یا از قدیمی‌ترین ویدیوی کانال به جدیدترین) شماره‌گذاری می‌شوند: «001 - نام ویدیو».",
-  chooseFolderFirst: "ابتدا پوشه مقصد را انتخاب کنید.",
-  noVideos: "ویدیویی یافت نشد.",
-  search: "جستجو…",
-
-  queueEmpty: "هیچ دانلودی نیست.",
-  queueHint: "با دکمه «+ دانلود جدید» شروع کنید یا فقط لینک یوتیوب را کپی کنید.",
-  singleVideosGroup: "تک‌ویدیوها",
-  pauseAll: "توقف همه",
-  resumeAll: "ادامه همه",
-  clearFinished: "پاک‌سازی تمام‌شده‌ها",
-  remove: "حذف",
-  retry: "تلاش مجدد",
-  openFolder: "نمایش در پوشه",
-  pause: "توقف",
-  resume: "ادامه",
-  cancel: "لغو",
-  copyLink: "کپی لینک",
-  copyTitle: "کپی عنوان",
-  copyPath: "کپی مسیر فایل",
-  openFile: "باز کردن فایل",
-  downloadAgain: "دانلود مجدد",
-  copied: "در کلیپ‌بورد کپی شد",
-
-  statusQueued: "در صف",
-  statusActive: "در حال دانلود",
-  statusPaused: "متوقف",
-  statusCompleted: "کامل شد",
-  statusError: "خطا",
-  statusCancelled: "لغو شد",
-  statusScheduled: "زمان‌بندی شده",
-  stageDownload: "دانلود",
-  stageMerge: "ادغام ویدیو و صدا",
-  stageAudio: "تبدیل به MP3",
-  stageDone: "تمام",
-
-  historyEmpty: "تاریخچه خالی است.",
-  clearHistory: "پاک‌کردن تاریخچه",
-  size: "حجم",
-  date: "تاریخ",
-
-  settingsGeneral: "عمومی",
-  settingsTabGeneral: "عمومی",
-  settingsTabYouTube: "حساب یوتیوب",
-  settingsTabNetwork: "شبکه",
-  settingsTabTools: "ابزارها و فرمت‌ها",
-  settingsTabDownloads: "دانلودها",
-  settingsTabData: "داده‌ها",
-  language: "زبان",
-  theme: "تم",
-  themeSystem: "سیستمی",
-  dark: "تاریک",
-  light: "روشن",
-  defaultFolder: "پوشه پیش‌فرض دانلود",
-  maxConcurrent: "تعداد دانلود هم‌زمان",
-  rateLimit: "محدودیت سرعت (مثلاً 5M — خالی = بدون محدودیت)",
-  subs: "دانلود زیرنویس در صورت وجود (فقط ویدیو)",
-  subLangs: "زبان‌های زیرنویس (با کاما جدا کنید)",
-  embedMetadata: "افزودن اطلاعات به فایل صوتی",
-  embedThumbnail: "افزودن تصویر کاور به فایل صوتی",
-  save: "ذخیره",
-  saved: "ذخیره شد",
-
-  behavior: "رفتار برنامه",
-  closeToTray: "با بستن پنجره، برنامه در سینی سیستم باز بماند",
-  clipboardWatch: "تشخیص لینک یوتیوب کپی‌شده در کلیپ‌بورد",
-  notifyOnClipboard: "نمایش اعلان سیستم وقتی پنجره بسته است",
-  autostartEnabled: "اجرا با روشن شدن سیستم (در پس‌زمینه و مخفی)",
-  autostartHint:
-    "با روشن شدن کامپیوتر، Vidaro بی‌صدا در سینی سیستم اجرا می‌شود. برای باز کردن، روی آیکون سینی کلیک کنید.",
-
-  tools: "ابزارهای دانلود",
-  version: "نسخه",
-  missing: "نصب نیست",
-  installed: "آماده",
-  updateYtdlp: "به‌روزرسانی yt-dlp",
-  jsRuntime: "موتور جاوااسکریپت",
-  jsRuntimeMissing: "پیدا نشد",
-  updating: "در حال به‌روزرسانی…",
-  updateOutput: "خروجی به‌روزرسانی",
-  openToolsFolder: "پوشه ابزارها",
-
-  proxy: "پروکسی",
-  proxyMode: "حالت پروکسی",
-  proxyOff: "خاموش",
-  proxySystem: "سیستم",
-  proxyManual: "دستی",
-  proxyHost: "آدرس",
-  proxyPort: "پورت",
-  proxyNote: "پشتیبانی از HTTP، HTTPS، SOCKS5 و SOCKS5h.",
-
-  account: "حساب یوتیوب",
-  cookiesMode: "ارسال کوکی",
-  cookiesOff: "خاموش",
-  cookiesBrowser: "از مرورگر",
-  cookiesFile: "فایل cookies.txt",
-  cookiesBrowserPick: "ورود از مرورگر",
-  cookiesFilePick: "فایل cookies.txt",
-  chooseCookies: "انتخاب فایل",
-  savedSession: "نشست ذخیره‌شده",
-  importSession: "ورود نشست از مرورگر",
-  signInBrowser: "ورود به یوتیوب",
-  appBoundWarn:
-    "ویندوز کوکی‌های این مرورگر را با کلیدی رمز می‌کند که فقط خودِ مرورگر می‌تواند بخواند؛ پس Vidaro (و yt-dlp) به آن دسترسی ندارد. با فایرفاکس وارد شو، یا فایل cookies.txt را بچسبان.",
-  pasteCookies: "چسباندن cookies.txt",
-  pasteCookiesHint:
-    "با هر مرورگر و هر سیستمی کار می‌کند: کوکی‌های youtube.com را با یک افزونه خروجی بگیر، فایل را در ویرایشگر متن باز کن و محتوایش را اینجا بچسبان.",
-  savePaste: "ذخیره کوکی‌ها",
-  importingSession: "در حال ورود…",
-  sessionReady: "{n} کوکی ورود ذخیره شد",
-  sessionMissing: "هنوز وارد نشده",
-  sessionHint:
-    "یک‌بار وارد کنید و از آن به بعد مرورگر لازم نیست؛ Vidaro نسخه‌ی خودش از کوکی‌های ورود را نگه می‌دارد. اگر دانلودها دوباره خطا دادند، دوباره وارد کنید.",
-  cookiesHint:
-    "یوتیوب دانلودرها را با پیام «تأیید کنید ربات نیستید» مسدود می‌کند. ارسال کوکی از مرورگری که در آن وارد حساب شده‌اید مطمئن‌ترین راه رفع آن است. هیچ داده‌ای جایی ارسال نمی‌شود؛ کوکی‌ها فقط به yt-dlp داده می‌شوند.",
-  cookiesBrowserHint:
-    "فایرفاکس مطمئن‌ترین گزینه است. کوکی‌های کروم معمولاً با ویندوز رمزنگاری شده‌اند و خطای DPAPI می‌دهند؛ در آن صورت فایل cookies.txt را خروجی بگیرید و انتخاب کنید.",
-
-  reliability: "پایداری",
-  autoRetry: "تلاش مجدد خودکار برای دانلودهای ناموفق",
-  autoRetryMax: "حداکثر تلاش مجدد",
-  retryDelay: "فاصله پایه (ثانیه)",
-  retryHint:
-    "محدودیت‌های موقت یوتیوب و قطعی اتصال خودبه‌خود برطرف می‌شوند. خطاهای موقت با فاصله‌ی افزایشی دوباره تلاش می‌شوند، حتی پس از بستن و باز کردن برنامه.",
-
-  testConnection: "تست اتصال",
-  testingConnection: "در حال تست…",
-  testOk: "اتصال برقرار است",
-  statusRetrying: "در انتظار تلاش مجدد",
-  retryFailed: "تلاش مجدد ناموفق‌ها",
-
-  scheduler: "زمان‌بندی",
-  schedulerEnabled: "فعال‌سازی زمان‌بندی سراسری",
-  schedulerStart: "شروع",
-  schedulerEnd: "پایان",
-  schedulerNote:
-    "دانلودها فقط در این بازه انجام می‌شوند. آیتم‌های دارای زمان‌بندی جداگانه مستثنی هستند.",
-  perItemSchedule: "زمان‌بندی این دانلود",
-  scheduleStart: "شروع",
-  scheduleEnd: "پایان",
-  clearSchedule: "حذف زمان‌بندی",
-
-  importExport: "ورود / صدور داده‌ها",
-  exportData: "صادرکردن",
-  importData: "ورود",
-  exportSuccess: "پشتیبان با موفقیت ذخیره شد",
-  importSuccess: "پشتیبان با موفقیت وارد شد",
-  importError: "خطا در ورود داده‌ها: {error}",
-
-  toolsMissingTitle: "ابزارهای دانلود نصب نیستند",
-  toolsMissingDesc:
-    "برای دانلود ویدیو، Vidaro به yt-dlp و ffmpeg نیاز دارد. این ابزارها یک‌بار دانلود و در پوشه داده برنامه ذخیره می‌شوند.",
-  installTools: "نصب ابزارها",
-  retryInstall: "تلاش مجدد",
-  installing: "در حال نصب {tool}…",
-
-  fetchFailed: "دریافت اطلاعات ناموفق بود:",
-  fetchFailedHint:
-    "با این حال می‌توانی ویدیو را به صف اضافه کنی: کیفیت را پایین‌تر انتخاب کن و «افزودن» را بزن. Vidaro خودش دوباره تلاش می‌کند و به‌محض عبور از محدودیت یوتیوب کاملش می‌کند.",
-  noSelection: "ابتدا ویدیو(ها) را انتخاب کنید.",
-  eta: "باقی‌مانده {v}",
-  error: "خطا",
-  of: "از",
-
-  totalSpeed: "سرعت کل",
-  activeDownloads: "دانلود فعال",
-
-  clipboardToast: "لینک یوتیوب پیدا شد",
-  clipboardToastHint: "به صف دانلود اضافه شود؟",
-  downloadNow: "دانلود",
-  openApp: "باز کردن برنامه",
-  dismiss: "نادیده",
-};
-
-export const dict = { en, fa };
 export type TKey = keyof typeof en;
 
 export function translate(
@@ -449,14 +235,10 @@ export function translate(
 }
 
 export interface I18n {
-  lang: Lang;
-  dir: "rtl" | "ltr";
   t: (key: TKey, vars?: Record<string, string | number>) => string;
 }
 
 export const I18nContext = createContext<I18n>({
-  lang: "en",
-  dir: "ltr",
   t: (key) => dict.en[key],
 });
 

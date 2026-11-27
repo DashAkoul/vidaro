@@ -3,7 +3,7 @@
 A desktop YouTube downloader for Windows, macOS and Linux — built with
 Tauri 2 (Rust) + React + TypeScript.
 
-![version](https://img.shields.io/badge/version-2.1.1-00a8ff)
+![version](https://img.shields.io/badge/version-2.2.2-00a8ff)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-00a8ff)
 
 ---
@@ -24,7 +24,7 @@ Tauri 2 (Rust) + React + TypeScript.
 - **Hidden autostart** — Vidaro starts in the tray at boot without opening a window
 - **Survives YouTube blocks** — import a session once (any browser, or a pasted `cookies.txt`; no browser needed afterwards), automatic retries, player-client rotation, and a connection self-test
 - **Instant recognition** — the link type and id appear immediately, the title follows in about a second, and *Download now* skips the wait entirely
-- **Bilingual UI** — Persian (RTL) and English, dark/light/system themes
+- **Dark / light / system themes** in a minimal, modern interface
 - **Self-provisioning tools** — yt-dlp, ffmpeg and the Deno JavaScript runtime are fetched on first run, keeping the installer small
 - **Browser extension** — send the current page to Vidaro from Chrome, Edge or Firefox
 
@@ -39,10 +39,19 @@ Download the installer for your platform from the
 | --- | --- |
 | Windows | `Vidaro_<version>_x64-setup.exe` (NSIS) or `Vidaro_<version>_x64_en-US.msi` |
 | macOS | `Vidaro_<version>_universal.dmg` |
-| Linux | `Vidaro_<version>_amd64.AppImage` or `.deb` |
+| Linux | `.AppImage` (any distro), `.deb` (Debian/Ubuntu/Mint/Kali), `.rpm` (Fedora/RHEL/openSUSE), `.pkg.tar.zst` (Arch/Manjaro), `.ebuild` (Gentoo), `.apk` (Alpine) |
 
 yt-dlp and ffmpeg are **not** bundled. They are downloaded into the app data
 folder on first run, or from **Settings → Download tools**.
+
+---
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![The download queue, light theme](docs/screenshots/queue-light.png) | ![New download, dark theme](docs/screenshots/new-download-dark.png) |
+| ![Settings organised into tabs](docs/screenshots/settings-tabs.png) | ![YouTube account — import or paste a session](docs/screenshots/youtube-account.png) |
 
 ---
 

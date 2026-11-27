@@ -24,16 +24,14 @@ export default function App() {
 }
 
 function Shell() {
-  const { settings, tab } = useApp();
+  const { tab } = useApp();
 
-  const i18n = useMemo<I18n>(() => {
-    const lang = settings.language;
-    return {
-      lang,
-      dir: lang === "fa" ? "rtl" : "ltr",
-      t: (key, vars) => translate(lang, key, vars),
-    };
-  }, [settings.language]);
+  const i18n = useMemo<I18n>(
+    () => ({
+      t: (key, vars) => translate("en", key, vars),
+    }),
+    [],
+  );
 
   return (
     <I18nContext.Provider value={i18n}>

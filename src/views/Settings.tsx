@@ -249,24 +249,6 @@ export default function Settings() {
         <h3>{t("settingsGeneral")}</h3>
 
         <div className="settings-row">
-          <span>{t("language")}</span>
-          <div className="seg">
-            <button
-              className={`seg-btn ${settings.language === "fa" ? "active" : ""}`}
-              onClick={() => updateSettings({ language: "fa" })}
-            >
-              فارسی
-            </button>
-            <button
-              className={`seg-btn ${settings.language === "en" ? "active" : ""}`}
-              onClick={() => updateSettings({ language: "en" })}
-            >
-              English
-            </button>
-          </div>
-        </div>
-
-        <div className="settings-row">
           <span>{t("theme")}</span>
           <div className="seg">
             <button

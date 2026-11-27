@@ -10,7 +10,7 @@ use crate::features::download::model::{ItemStatus, PausedBy};
 use crate::features::download::queue::Manager;
 use crate::features::system::window;
 
-/// Menu labels per language.
+/// Tray menu labels.
 struct Labels {
     show: &'static str,
     pause_all: &'static str,
@@ -18,27 +18,17 @@ struct Labels {
     quit: &'static str,
 }
 
-fn labels(language: &str) -> Labels {
-    if language == "fa" {
-        Labels {
-            show: "نمایش Vidaro",
-            pause_all: "توقف همه",
-            resume_all: "ادامه همه",
-            quit: "خروج",
-        }
-    } else {
-        Labels {
-            show: "Show Vidaro",
-            pause_all: "Pause all",
-            resume_all: "Resume all",
-            quit: "Quit",
-        }
+fn labels() -> Labels {
+    Labels {
+        show: "Show Vidaro",
+        pause_all: "Pause all",
+        resume_all: "Resume all",
+        quit: "Quit",
     }
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let language = crate::core::state::config(app).get().language;
-    let text = labels(&language);
+    let text = labels();
 
     let show = MenuItem::with_id(app, "show", text.show, true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause_all", text.pause_all, true, None::<&str>)?;

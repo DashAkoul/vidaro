@@ -33,15 +33,6 @@ export default function Topbar() {
       </div>
 
       <div className="topbar-right">
-        <Dropdown button={<span className="ctl-btn">🌐 {settings.language === "fa" ? "فا" : "EN"}</span>}>
-          <div className="menu-item" onClick={() => updateSettings({ language: "en" })}>
-            {settings.language === "en" ? "✓ " : ""}English
-          </div>
-          <div className="menu-item" onClick={() => updateSettings({ language: "fa" })}>
-            {settings.language === "fa" ? "✓ " : ""}فارسی
-          </div>
-        </Dropdown>
-
         <Dropdown button={<span className="ctl-btn">{themeIcon}</span>}>
           <div className="menu-item" onClick={() => updateSettings({ theme: "light" })}>
             {settings.theme === "light" ? "✓ " : ""}☼ {t("light")}

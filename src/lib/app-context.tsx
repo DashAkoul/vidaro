@@ -165,8 +165,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   /* ---------------------------------------------------- theme + direction */
 
-  const lang = settings?.language ?? "en";
-  const dir = lang === "fa" ? "rtl" : "ltr";
   const themeMode = settings?.theme ?? "system";
 
   useEffect(() => {
@@ -181,9 +179,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [themeMode]);
 
   useEffect(() => {
-    document.documentElement.dir = dir;
-    document.documentElement.lang = lang;
-  }, [dir, lang]);
+    document.documentElement.lang = "en";
+  }, []);
 
   /* ------------------------------------------------------------ settings */
 
@@ -264,7 +261,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 }
 
 const FALLBACK_SETTINGS: Settings = {
-  language: "en",
   theme: "system",
   defaultDir: "",
   maxConcurrent: 2,

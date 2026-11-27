@@ -1,7 +1,7 @@
 {
   "name": "vidaro",
   "private": true,
-  "version": "2.2.1",
+  "version": "2.2.2",
   "type": "module",
   "description": "Vidaro \u2014 YouTube video, playlist and channel downloader",
   "scripts": {

@@ -13,7 +13,6 @@ pub const DEFAULT_APP_FOLDER: &str = "YouTube Downloader";
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    pub language: String,    // "fa" | "en"
     pub theme: String,       // "system" | "light" | "dark"
     pub default_dir: String, // "" = not chosen yet
     pub max_concurrent: u32,
@@ -64,7 +63,6 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            language: "en".into(),
             theme: "system".into(),
             default_dir: String::new(),
             max_concurrent: 2,
@@ -108,9 +106,6 @@ pub enum ProxySetting {
 impl Settings {
     /// Clamp values that come from untrusted sources (imported files, the UI).
     pub fn sanitize(&mut self) {
-        if self.language != "fa" && self.language != "en" {
-            self.language = "en".into();
-        }
         if !matches!(self.theme.as_str(), "system" | "light" | "dark") {
             self.theme = "system".into();
         }

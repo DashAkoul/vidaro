@@ -1,45 +1,46 @@
 /* ============ Vidaro — Dark Premium + Neon Accent ============ */
 
 :root {
-  /* dark (default identity) */
-  --bg: #080b18;
-  --surface: #111827;
-  --card: #141b2d;
-  --card-hover: #162033;
-  --border: #24304a;
-  --border-soft: #1b2438;
-  --text: #e5e9f2;
-  --text-muted: #8b93a7;
+  /* dark (default identity) — neutral graphite, one calm accent */
+  --bg: #0b0b0e;
+  --surface: #101013;
+  --card: #16161a;
+  --card-hover: #1c1c21;
+  --border: #26262c;
+  --border-soft: #1d1d22;
+  --text: #ededf0;
+  --text-muted: #8f8f99;
 
-  --accent: #00a8ff;
-  --accent-2: #00d9ff;
+  --accent: #0a84ff;
+  --accent-2: #0a84ff;
   --purple: #8b5cf6;
-  --ok: #22c55e;
-  --warn: #f59e0b;
-  --err: #ef4444;
+  --ok: #30d158;
+  --warn: #ffd60a;
+  --err: #ff453a;
 
-  --accent-soft: rgba(0, 168, 255, 0.14);
-  --accent-glow: 0 0 14px rgba(0, 168, 255, 0.25);
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --accent-soft: rgba(10, 132, 255, 0.12);
+  --accent-glow: none;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 
-  --sidebar-w: 232px;
-  --topbar-h: 56px;
-  --statusbar-h: 34px;
+  --radius: 10px;
+  --sidebar-w: 208px;
+  --topbar-h: 48px;
+  --statusbar-h: 28px;
 }
 
 :root[data-theme="light"] {
-  --bg: #f5f7fb;
+  --bg: #fafafa;
   --surface: #ffffff;
   --card: #ffffff;
-  --card-hover: #f1f5fb;
-  --border: #e2e8f0;
-  --border-soft: #edf1f7;
-  --text: #111827;
-  --text-muted: #64748b;
+  --card-hover: #f5f5f7;
+  --border: #e5e5ea;
+  --border-soft: #ececf0;
+  --text: #1c1c1e;
+  --text-muted: #6e6e78;
 
-  --accent-soft: rgba(0, 168, 255, 0.1);
+  --accent-soft: rgba(10, 132, 255, 0.09);
   --accent-glow: none;
-  --shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 
 * {
@@ -52,16 +53,11 @@ html,
 body,
 #root {
   height: 100%;
-  font-family: Inter, "Segoe UI", Vazirmatn, Tahoma, sans-serif;
+  font-family: Inter, system-ui, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
   overflow: hidden;
-}
-
-[dir="rtl"] html,
-[dir="rtl"] body {
-  font-family: Vazirmatn, "Segoe UI", Tahoma, sans-serif;
 }
 
 .splash {
@@ -103,22 +99,20 @@ body,
 }
 
 .brand-name {
-  font-weight: 800;
-  font-size: 17px;
-  letter-spacing: 0.4px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 650;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+  color: var(--text);
 }
 
 .side-title {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--text-muted);
-  padding: 10px 12px 4px;
+  padding: 12px 12px 4px;
+  opacity: 0.8;
 }
 
 .side-section {
@@ -137,27 +131,27 @@ body,
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8.5px 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 9px;
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 450;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   text-align: start;
 }
 
 .side-item:hover {
-  background: var(--card);
+  background: var(--card-hover);
   color: var(--text);
 }
 
 .side-item.active {
-  background: var(--accent-soft);
-  border-color: rgba(0, 168, 255, 0.35);
-  color: var(--accent);
+  background: var(--card-hover);
+  border-color: transparent;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -173,11 +167,11 @@ body,
 
 .side-badge {
   margin-inline-start: auto;
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-soft);
+  color: var(--accent);
   border-radius: 99px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 1px 7px;
   min-width: 19px;
   text-align: center;
@@ -200,13 +194,13 @@ body,
   justify-content: space-between;
   gap: 12px;
   padding: 0 20px;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--surface);
+  border-bottom: none;
+  background: var(--bg);
 }
 
 .topbar h1 {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .topbar-right {
@@ -219,20 +213,20 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6.5px 12px;
-  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border: 1px solid var(--border-soft);
   border-radius: 9px;
-  background: var(--card);
+  background: transparent;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, border-color 0.15s;
   user-select: none;
 }
 
 .ctl-btn:hover {
   color: var(--text);
-  border-color: var(--accent);
+  border-color: var(--border);
 }
 
 .dropdown {
@@ -246,7 +240,7 @@ body,
   min-width: 140px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 5px;
   z-index: 60;
@@ -270,7 +264,7 @@ body,
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 18px 20px;
+  padding: 10px 22px 22px;
 }
 
 .view {
@@ -334,7 +328,7 @@ body,
 .url-input {
   flex: 1;
   padding: 12px 14px;
-  border-radius: 11px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
@@ -350,10 +344,10 @@ body,
 
 .btn {
   border: none;
-  border-radius: 10px;
-  padding: 10px 18px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 9px;
+  padding: 8px 15px;
+  font-size: 12.5px;
+  font-weight: 550;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
@@ -365,13 +359,12 @@ body,
 }
 
 .btn.primary {
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   color: #fff;
-  box-shadow: var(--accent-glow);
 }
 
 .btn.primary:hover:not(:disabled) {
-  filter: brightness(1.1);
+  filter: brightness(1.08);
 }
 
 .btn.secondary {
@@ -447,11 +440,11 @@ body,
 }
 
 .chip {
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   border-radius: 99px;
-  padding: 5px 14px;
+  padding: 4px 12px;
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
@@ -471,7 +464,7 @@ body,
   gap: 14px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 14px;
 }
 
@@ -594,7 +587,7 @@ body,
 .options-panel {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -652,9 +645,9 @@ input:focus {
 }
 
 .seg-btn.active {
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   color: #fff;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .dir-row {
@@ -763,7 +756,7 @@ input:focus {
   gap: 12px;
   background: var(--bg);
   border: 1px solid var(--border-soft);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 11px 14px;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -903,7 +896,7 @@ input:focus {
 .progress-fill {
   height: 100%;
   border-radius: 99px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   transition: width 0.25s ease;
 }
 
@@ -1003,20 +996,22 @@ input:focus {
 
 .settings-section {
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .settings-section h3 {
-  font-size: 13.5px;
-  margin-bottom: 10px;
+  font-size: 11px;
+  margin-bottom: 8px;
   color: var(--text-muted);
-  font-weight: 700;
-  letter-spacing: 0.3px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.85;
 }
 
 .settings-row {
@@ -1024,8 +1019,8 @@ input:focus {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 9px 0;
-  font-size: 13.5px;
+  padding: 8px 0;
+  font-size: 13px;
   border-bottom: 1px solid var(--border-soft);
   flex-wrap: wrap;
 }
@@ -1068,9 +1063,9 @@ input:focus {
   gap: 22px;
   padding: 0 20px;
   border-top: 1px solid var(--border-soft);
-  background: var(--surface);
-  font-size: 12px;
-  color: var(--text);
+  background: var(--bg);
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .status-speed {
@@ -1143,7 +1138,7 @@ input:focus {
   z-index: 90;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 14px 16px;
   display: flex;
@@ -1218,7 +1213,7 @@ input:focus {
   width: min(480px, 90vw);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 26px;
   display: flex;
   flex-direction: column;
@@ -1252,7 +1247,7 @@ input:focus {
 
 .tool-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   border-radius: 99px;
   transition: width 0.2s;
 }
@@ -1397,7 +1392,7 @@ input, textarea, select {
   width: min(560px, 100%);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 26px;
   display: flex;
   flex-direction: column;

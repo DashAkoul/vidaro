@@ -72,7 +72,6 @@ export type InfoResult =
     };
 
 export interface Settings {
-  language: "fa" | "en";
   theme: "system" | "light" | "dark";
   defaultDir: string;
   maxConcurrent: number;

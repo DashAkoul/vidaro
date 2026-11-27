@@ -34,24 +34,14 @@ export default class ErrorBoundary extends Component<
 }
 
 function CrashScreen({ error, onRetry }: { error: Error; onRetry: () => void }) {
-  const fa = document.documentElement.lang === "fa";
-  const text = fa
-    ? {
-        title: "خطایی رخ داد",
-        hint: "رابط کاربری به خطای غیرمنتظره برخورد کرد. دانلودهای در جریان در پس‌زمینه ادامه می‌یابند.",
-        reload: "بارگذاری مجدد",
-        retry: "تلاش مجدد",
-        copy: "کپی جزئیات",
-        copied: "کپی شد",
-      }
-    : {
-        title: "Something went wrong",
-        hint: "The interface hit an unexpected error. Downloads already running continue in the background.",
-        reload: "Reload",
-        retry: "Try again",
-        copy: "Copy details",
-        copied: "Copied",
-      };
+  const text = {
+    title: "Something went wrong",
+    hint: "The interface hit an unexpected error. Downloads already running continue in the background.",
+    reload: "Reload",
+    retry: "Try again",
+    copy: "Copy details",
+    copied: "Copied",
+  };
 
   const details = `${error.name}: ${error.message}\n${error.stack ?? ""}`;
 

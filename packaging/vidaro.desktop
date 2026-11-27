@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Vidaro
+GenericName=YouTube Downloader
+Comment=Download YouTube videos, playlists and channels
+Exec=vidaro
+Icon=vidaro
+Terminal=false
+Categories=Network;FileTransfer;
+StartupWMClass=Vidaro

@@ -144,7 +144,7 @@ jobs:
           retention-days: 30
 
   build-linux:
-    name: Build Linux (AppImage + Deb)
+    name: Build Linux (AppImage, Deb, Rpm, Arch, Gentoo)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -196,10 +196,16 @@ jobs:
         run: npm ci
 
       - name: Build Tauri App (Linux)
-        run: npm run tauri build
+        run: npm run tauri build -- --bundles deb rpm appimage
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Package for Arch Linux (.pkg.tar.zst)
+        run: bash scripts/package-arch.sh "$GITHUB_REF_NAME"
+
+      - name: Generate Gentoo ebuild
+        run: bash scripts/gen-ebuild.sh dist-ebuild
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -208,12 +214,37 @@ jobs:
           path: |
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            vidaro-*.pkg.tar.zst
+            dist-ebuild/*.ebuild
           if-no-files-found: error
+          retention-days: 30
+
+  build-alpine:
+    name: Build Alpine (.apk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build inside an Alpine 3.21 container
+        run: |
+          chmod +x scripts/build-alpine.sh
+          docker run --rm -v "$PWD":/work -w /work alpine:3.21 /bin/ash scripts/build-alpine.sh
+
+      - name: Upload Alpine artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidaro-alpine
+          path: dist-alpine/*.apk
+          if-no-files-found: ignore
           retention-days: 30
 
   create-release:
     name: Create GitHub Release
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-macos, build-linux, build-alpine]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -259,7 +290,11 @@ jobs:
 
             **Linux:**
             - `Vidaro_${{ github.ref_name }}_amd64.AppImage` (Portable)
-            - `Vidaro_${{ github.ref_name }}_amd64.deb` (Debian/Ubuntu)
+            - `Vidaro_${{ github.ref_name }}_amd64.deb` (Debian/Ubuntu/Mint/Kali)
+            - `Vidaro_${{ github.ref_name }}_amd64.rpm` (Fedora/RHEL/openSUSE)
+            - `vidaro-2.2.2-1-x86_64.pkg.tar.zst` (Arch/Manjaro, `pacman -U`)
+            - `vidaro-2.2.2.ebuild` (Gentoo overlay recipe)
+            - `vidaro-2.2.2-r0.apk` (Alpine, `apk add --allow-untrusted`)
 
             > yt-dlp and ffmpeg are not bundled. Vidaro downloads them into its
             > data folder on first run (Settings → Download tools).
@@ -272,7 +307,22 @@ jobs:
             artifacts/**/*.app.zip
             artifacts/**/*.AppImage
             artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.pkg.tar.zst
+            artifacts/**/*.ebuild
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload the Alpine package (when the build succeeded)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          FILES=$(find artifacts -type f -name "*.apk" || true)
+          if [ -n "$FILES" ]; then
+            gh release upload "$GITHUB_REF_NAME" $FILES --clobber
+          else
+            echo "No Alpine package this release (musl build failed)."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
